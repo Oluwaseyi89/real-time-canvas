@@ -318,8 +318,8 @@ export function useRoom(options: UseRoomOptions = {}) {
     isCreating,
     isJoining,
     error,
-    isInRoom: isInRoom(),
-    isOwner: isRoomOwner(),
+    isInRoom: isInRoom(), // Computed boolean value
+    isOwner: isRoomOwner(), // Computed boolean value
 
     // Actions
     createRoom,
@@ -331,6 +331,5 @@ export function useRoom(options: UseRoomOptions = {}) {
     loadCurrentRoom,
     getRoomById,
     isRoomOwner,
-    isInRoom,
   }
 }
