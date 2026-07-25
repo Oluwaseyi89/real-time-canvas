@@ -4,9 +4,13 @@ import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState, useCallback } from 'react'
 import { useCanvas } from '@/hooks/useCanvas'
 import { useWebSocket } from '@/hooks/useWebSocket'
+import { useRoom } from '@/hooks/useRoom'
+import { useAuth } from '@/hooks/useAuth'
 import { ZoomControls } from '@/components/canvas/ZoomControls'
 import { Toolbar } from '@/components/canvas/tools/Toolbar'
 import { CursorTracker } from '@/components/collaboration/CursorTracker'
+import { RoomInvite } from '@/components/room/RoomInvite'
+import { RoomInfo } from '@/components/room/RoomInfo'
 import { useCanvasStore } from '@/store/canvasStore'
 import { useWebSocketStore } from '@/store/websocketStore'
 
@@ -14,8 +18,10 @@ export default function CanvasRoomPage() {
   const params = useParams()
   const router = useRouter()
   const roomId = params.roomId as string
-  const [username, setUsername] = useState<string>('')
+  const { username } = useAuth()
+  const { currentRoom, joinRoom, leaveRoom, isInRoom } = useRoom()
   const [isReady, setIsReady] = useState(false)
+  const [isRoomInfoOpen, setIsRoomInfoOpen] = useState(false)
   const [userId] = useState(() => `user-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`)
 
   const {
@@ -34,7 +40,6 @@ export default function CanvasRoomPage() {
     isInitialized,
   } = useCanvas({
     onObjectAdded: (obj) => {
-      // Broadcast object creation via WebSocket
       const custom = obj as any
       if (custom.id && custom.type) {
         send('object:create', {
@@ -53,7 +58,7 @@ export default function CanvasRoomPage() {
     url: wsUrl,
     roomId,
     userId,
-    username,
+    username: username || 'Guest',
     autoConnect: false,
     onConnect: () => {
       console.log('[CanvasRoom] WebSocket connected')
@@ -70,44 +75,43 @@ export default function CanvasRoomPage() {
   useEffect(() => {
     const storedUsername = sessionStorage.getItem('username')
     if (storedUsername) {
-      setUsername(storedUsername)
       setIsReady(true)
     } else {
       router.push('/')
     }
   }, [router])
 
-  // Connect WebSocket when ready
+  // Join room when ready
   useEffect(() => {
-    if (isReady && username) {
+    if (isReady && username && !isInRoom) {
+      joinRoom(roomId)
+    }
+  }, [isReady, username, roomId, joinRoom, isInRoom])
+
+  // Connect WebSocket when in room
+  useEffect(() => {
+    if (isReady && username && isInRoom) {
       connect()
     }
     return () => {
       disconnect()
     }
-  }, [isReady, username, connect, disconnect])
+  }, [isReady, username, isInRoom, connect, disconnect])
 
   // Subscribe to WebSocket events
   useEffect(() => {
     if (!isConnected) return
 
-    // Handle object creation from other users
     const unsubscribeCreate = subscribe('object:create', (message) => {
-      const payload = message.payload
-      console.log('[CanvasRoom] Object created by other user:', payload)
-      // Add object to canvas (will be handled by useCanvas hook)
+      console.log('[CanvasRoom] Object created by other user:', message.payload)
     })
 
-    // Handle object updates
     const unsubscribeUpdate = subscribe('object:update', (message) => {
-      const payload = message.payload
-      console.log('[CanvasRoom] Object updated:', payload)
+      console.log('[CanvasRoom] Object updated:', message.payload)
     })
 
-    // Handle user presence
     const unsubscribePresence = subscribe('user:presence', (message) => {
-      const presence = message.payload
-      useWebSocketStore.getState().addUser(presence as any)
+      useWebSocketStore.getState().addUser(message.payload as any)
     })
 
     return () => {
@@ -117,7 +121,13 @@ export default function CanvasRoomPage() {
     }
   }, [isConnected, subscribe])
 
-  // Show loading state
+  // Leave room on unmount
+  useEffect(() => {
+    return () => {
+      leaveRoom()
+    }
+  }, [leaveRoom])
+
   if (!isReady) {
     return (
       <div className="flex items-center justify-center h-screen bg-canvas-bg">
@@ -152,6 +162,28 @@ export default function CanvasRoomPage() {
         <Toolbar />
       </div>
 
+      {/* Room invite - positioned bottom-left */}
+      <div className="absolute bottom-4 left-4 z-10 max-w-xs">
+        <RoomInvite />
+      </div>
+
+      {/* Room info toggle */}
+      <div className="absolute top-4 right-4 z-20 flex flex-col items-end gap-2">
+        <button
+          onClick={() => setIsRoomInfoOpen(!isRoomInfoOpen)}
+          className="px-3 py-2 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg border border-border-light text-sm text-gray-600 hover:bg-white transition-colors"
+        >
+          {isRoomInfoOpen ? '📋 Hide Info' : '📋 Room Info'}
+        </button>
+      </div>
+
+      {/* Room info panel */}
+      {isRoomInfoOpen && (
+        <div className="absolute top-16 right-4 z-20 w-72 animate-in slide-in-from-top-2 duration-200">
+          <RoomInfo />
+        </div>
+      )}
+
       {/* Zoom controls */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
         <ZoomControls
@@ -163,8 +195,8 @@ export default function CanvasRoomPage() {
         />
       </div>
 
-      {/* Room info */}
-      <div className="absolute top-4 right-4 z-10 bg-white/90 backdrop-blur-sm px-3 py-2 rounded-lg shadow-lg border border-border-light text-sm min-w-[140px]">
+      {/* Room info overlay */}
+      <div className="absolute top-4 right-20 z-10 bg-white/90 backdrop-blur-sm px-3 py-2 rounded-lg shadow-lg border border-border-light text-sm min-w-[140px]">
         <div className="text-gray-700">
           <span className="font-medium">Room:</span> {roomId.slice(0, 8)}
         </div>
