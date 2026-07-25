@@ -1,18 +1,21 @@
 'use client'
 
 import { useParams, useRouter } from 'next/navigation'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState, useCallback, useRef } from 'react'
 import { useCanvas } from '@/hooks/useCanvas'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { useRoom } from '@/hooks/useRoom'
 import { useAuth } from '@/hooks/useAuth'
+import { useCollaboration } from '@/hooks/useCollaboration'
 import { ZoomControls } from '@/components/canvas/ZoomControls'
 import { Toolbar } from '@/components/canvas/tools/Toolbar'
 import { CursorTracker } from '@/components/collaboration/CursorTracker'
+import { UserPresence } from '@/components/collaboration/UserPresence'
+import { TypingIndicator } from '@/components/collaboration/TypingIndicator'
 import { RoomInvite } from '@/components/room/RoomInvite'
 import { RoomInfo } from '@/components/room/RoomInfo'
 import { useCanvasStore } from '@/store/canvasStore'
-import { useWebSocketStore } from '@/store/websocketStore'
+import { useCollaborationStore } from '@/store/collaborationStore'
 
 export default function CanvasRoomPage() {
   const params = useParams()
@@ -23,6 +26,9 @@ export default function CanvasRoomPage() {
   const [isReady, setIsReady] = useState(false)
   const [isRoomInfoOpen, setIsRoomInfoOpen] = useState(false)
   const [userId] = useState(() => `user-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`)
+  
+  // Create a ref for the canvas element
+  const canvasElementRef = useRef<HTMLCanvasElement | null>(null)
 
   const {
     canvasRef,
@@ -42,11 +48,14 @@ export default function CanvasRoomPage() {
     onObjectAdded: (obj) => {
       const custom = obj as any
       if (custom.id && custom.type) {
-        send('object:create', {
+        // Broadcast object creation
+        syncObject({
           objectId: custom.id,
           type: custom.type,
           data: custom.toObject ? custom.toObject() : {},
-          position: { x: custom.left || 0, y: custom.top || 0 },
+          version: 1,
+          userId: userId,
+          timestamp: Date.now(),
         })
       }
     },
@@ -70,6 +79,39 @@ export default function CanvasRoomPage() {
       console.error('[CanvasRoom] WebSocket error:', error)
     },
   })
+
+  // Collaboration setup
+  const { 
+    broadcastCursor, 
+    broadcastTyping,
+    syncObject,
+    users 
+  } = useCollaboration({
+    roomId,
+    userId,
+    username: username || 'Guest',
+    enabled: isConnected,
+  })
+
+  // Track cursor position for broadcasting
+  const lastCursorPos = useRef<{ x: number; y: number } | null>(null)
+
+  // Handle mouse move for cursor broadcasting
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    const canvas = canvasElementRef.current
+    if (!canvas || !isConnected) return
+    
+    const rect = canvas.getBoundingClientRect()
+    const x = ((e.clientX - rect.left) / rect.width) * canvas.width
+    const y = ((e.clientY - rect.top) / rect.height) * canvas.height
+    
+    lastCursorPos.current = { x, y }
+    broadcastCursor({
+      x,
+      y,
+      timestamp: Date.now(),
+    })
+  }, [isConnected, broadcastCursor])
 
   // Load username from session storage
   useEffect(() => {
@@ -98,28 +140,20 @@ export default function CanvasRoomPage() {
     }
   }, [isReady, username, isInRoom, connect, disconnect])
 
-  // Subscribe to WebSocket events
+  // Set up mouse event listeners
   useEffect(() => {
-    if (!isConnected) return
-
-    const unsubscribeCreate = subscribe('object:create', (message) => {
-      console.log('[CanvasRoom] Object created by other user:', message.payload)
+    const canvas = canvasElementRef.current
+    if (!canvas) return
+    
+    canvas.addEventListener('mousemove', handleMouseMove)
+    canvas.addEventListener('mouseleave', () => {
+      lastCursorPos.current = null
     })
-
-    const unsubscribeUpdate = subscribe('object:update', (message) => {
-      console.log('[CanvasRoom] Object updated:', message.payload)
-    })
-
-    const unsubscribePresence = subscribe('user:presence', (message) => {
-      useWebSocketStore.getState().addUser(message.payload as any)
-    })
-
+    
     return () => {
-      unsubscribeCreate()
-      unsubscribeUpdate()
-      unsubscribePresence()
+      canvas.removeEventListener('mousemove', handleMouseMove)
     }
-  }, [isConnected, subscribe])
+  }, [handleMouseMove])
 
   // Leave room on unmount
   useEffect(() => {
@@ -148,23 +182,41 @@ export default function CanvasRoomPage() {
         style={{ touchAction: 'none' }}
       >
         <canvas
-          ref={canvasRef}
+          ref={(el) => {
+            // Store in local ref for mouse events
+            canvasElementRef.current = el
+            // Forward to the hook's ref
+            if (canvasRef) {
+              // canvasRef is a RefObject, assign its current property
+              ;(canvasRef as React.MutableRefObject<HTMLCanvasElement | null>).current = el
+            }
+          }}
           className="w-full h-full"
           style={{ touchAction: 'none' }}
         />
       </div>
 
       {/* Cursor tracker for remote users */}
-      <CursorTracker canvasRef={canvasRef} />
+      <CursorTracker canvasRef={canvasElementRef} />
 
       {/* Toolbar - positioned top-left */}
       <div className="absolute top-4 left-4 z-20">
         <Toolbar />
       </div>
 
+      {/* User presence - positioned top center */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
+        <UserPresence className="bg-white/90 backdrop-blur-sm px-3 py-2 rounded-lg shadow-lg border border-border-light" />
+      </div>
+
       {/* Room invite - positioned bottom-left */}
       <div className="absolute bottom-4 left-4 z-10 max-w-xs">
         <RoomInvite />
+      </div>
+
+      {/* Typing indicator - positioned bottom-center */}
+      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10">
+        <TypingIndicator className="bg-white/80 backdrop-blur-sm px-3 py-1 rounded-lg shadow border border-border-light" />
       </div>
 
       {/* Room info toggle */}
@@ -218,7 +270,7 @@ export default function CanvasRoomPage() {
       </div>
 
       {/* Canvas instructions */}
-      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-lg shadow border border-border-light text-xs text-gray-500">
+      <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-10 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-lg shadow border border-border-light text-xs text-gray-500">
         🖱️ Scroll to zoom • Drag to pan • Click objects to select
       </div>
     </div>
