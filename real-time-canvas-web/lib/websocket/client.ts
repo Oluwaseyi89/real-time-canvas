@@ -1,0 +1,396 @@
+/**
+ * WebSocket client for real-time communication
+ * Handles connection, reconnection, message queuing, and event dispatching
+ */
+
+import type {
+  ConnectionState,
+  WebSocketMessage,
+  WebSocketMessageType,
+  WebSocketHandlers,
+  UserPresence,
+  CursorPosition,
+  ObjectCreatePayload,
+  ObjectUpdatePayload,
+  ObjectDeletePayload,
+  CanvasSyncPayload,
+  PhysicsPayload,
+  ErrorPayload,
+} from '@/types/websocket'
+import { v4 as uuidv4 } from 'uuid'
+
+/**
+ * WebSocket client configuration
+ */
+interface WebSocketConfig {
+  url: string
+  roomId: string
+  userId: string
+  username: string
+  reconnectAttempts?: number
+  reconnectDelay?: number
+  maxReconnectAttempts?: number
+  heartbeatInterval?: number
+}
+
+/**
+ * WebSocket client class with full type safety
+ */
+export class WebSocketClient {
+  private ws: WebSocket | null = null
+  private config: WebSocketConfig
+  private state: ConnectionState = 'disconnected'
+  private handlers: WebSocketHandlers = {}
+  private messageQueue: WebSocketMessage[] = []
+  private reconnectAttempts = 0
+  private reconnectTimeout: NodeJS.Timeout | null = null
+  private heartbeatInterval: NodeJS.Timeout | null = null
+  private isConnecting = false
+
+  constructor(config: WebSocketConfig) {
+    this.config = {
+      reconnectAttempts: 0,
+      reconnectDelay: 1000,
+      maxReconnectAttempts: 10,
+      heartbeatInterval: 30000,
+      ...config,
+    }
+  }
+
+  /**
+   * Connect to the WebSocket server
+   */
+  connect(): void {
+    if (this.isConnecting || this.ws?.readyState === WebSocket.OPEN) {
+      return
+    }
+
+    this.isConnecting = true
+    this.setState('connecting')
+
+    try {
+      const wsUrl = new URL(this.config.url)
+      wsUrl.searchParams.set('roomId', this.config.roomId)
+      wsUrl.searchParams.set('userId', this.config.userId)
+      wsUrl.searchParams.set('username', this.config.username)
+
+      this.ws = new WebSocket(wsUrl.toString())
+      this.setupEventListeners()
+    } catch (error) {
+      console.error('[WebSocketClient] Connection error:', error)
+      this.handleError({ code: 'CONNECTION_ERROR', message: 'Failed to connect to server' })
+      this.scheduleReconnect()
+    }
+  }
+
+  /**
+   * Disconnect from the WebSocket server
+   */
+  disconnect(): void {
+    this.cleanup()
+    if (this.ws) {
+      this.ws.close(1000, 'Client disconnected')
+      this.ws = null
+    }
+    this.setState('disconnected')
+    this.isConnecting = false
+  }
+
+  /**
+   * Send a message to the server
+   */
+  send<T = unknown>(
+    type: WebSocketMessageType,
+    payload: T,
+    options: { priority?: boolean } = {}
+  ): string {
+    const message: WebSocketMessage<T> = {
+      id: uuidv4(),
+      type,
+      roomId: this.config.roomId,
+      userId: this.config.userId,
+      timestamp: Date.now(),
+      payload,
+    }
+
+    if (this.isConnected()) {
+      this.sendMessage(message)
+    } else if (options.priority) {
+      this.sendMessage(message) // Try to send anyway
+    } else {
+      this.messageQueue.push(message as WebSocketMessage)
+    }
+
+    return message.id
+  }
+
+  /**
+   * Register event handlers
+   */
+  on(handlers: WebSocketHandlers): void {
+    this.handlers = { ...this.handlers, ...handlers }
+  }
+
+  /**
+   * Get current connection state
+   */
+  getState(): ConnectionState {
+    return this.state
+  }
+
+  /**
+   * Check if connected
+   */
+  isConnected(): boolean {
+    return this.state === 'connected' && this.ws?.readyState === WebSocket.OPEN
+  }
+
+  /**
+   * Get reconnect attempts
+   */
+  getReconnectAttempts(): number {
+    return this.reconnectAttempts
+  }
+
+  /**
+   * Set up WebSocket event listeners
+   */
+  private setupEventListeners(): void {
+    if (!this.ws) return
+
+    this.ws.onopen = () => {
+      this.handleOpen()
+    }
+
+    this.ws.onmessage = (event: MessageEvent) => {
+      this.handleMessage(event)
+    }
+
+    this.ws.onclose = (event: CloseEvent) => {
+      this.handleClose(event)
+    }
+
+    this.ws.onerror = (event: Event) => {
+      this.handleError({
+        code: 'WEBSOCKET_ERROR',
+        message: 'WebSocket error occurred',
+        details: { event },
+      })
+    }
+  }
+
+  /**
+   * Handle WebSocket open event
+   */
+  private handleOpen(): void {
+    this.isConnecting = false
+    this.reconnectAttempts = 0
+    this.setState('connected')
+    this.startHeartbeat()
+
+    // Send queued messages
+    this.flushQueue()
+
+    // Trigger connect handler
+    this.handlers.onConnect?.()
+    console.log('[WebSocketClient] Connected to server')
+  }
+
+  /**
+   * Handle WebSocket message event
+   */
+  private handleMessage(event: MessageEvent): void {
+    try {
+      const data = JSON.parse(event.data) as WebSocketMessage
+
+      // Handle heartbeat response
+      if (data.type === 'connection:ack') {
+        return
+      }
+
+      // Dispatch to handlers
+      this.dispatchMessage(data)
+
+      // Trigger generic message handler
+      this.handlers.onMessage?.(data)
+    } catch (error) {
+      console.error('[WebSocketClient] Failed to parse message:', error)
+    }
+  }
+
+  /**
+   * Handle WebSocket close event
+   */
+  private handleClose(event: CloseEvent): void {
+    this.stopHeartbeat()
+    this.isConnecting = false
+
+    if (event.wasClean) {
+      this.setState('disconnected')
+      this.handlers.onDisconnect?.()
+      console.log('[WebSocketClient] Disconnected cleanly')
+    } else {
+      this.setState('error')
+      this.handleError({
+        code: 'CONNECTION_LOST',
+        message: 'Connection lost unexpectedly',
+        details: { code: event.code, reason: event.reason },
+      })
+      this.scheduleReconnect()
+    }
+  }
+
+  /**
+   * Handle error events
+   */
+  private handleError(error: ErrorPayload): void {
+    console.error('[WebSocketClient] Error:', error)
+    this.handlers.onError?.(error)
+  }
+
+  /**
+   * Schedule reconnection attempt
+   */
+  private scheduleReconnect(): void {
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout)
+      this.reconnectTimeout = null
+    }
+
+    if (this.reconnectAttempts >= (this.config.maxReconnectAttempts || 10)) {
+      console.error('[WebSocketClient] Max reconnect attempts reached')
+      this.setState('disconnected')
+      return
+    }
+
+    const delay = this.config.reconnectDelay || 1000
+    this.reconnectTimeout = setTimeout(() => {
+      this.reconnectAttempts++
+      this.setState('reconnecting')
+      this.handlers.onReconnect?.(this.reconnectAttempts)
+      console.log(`[WebSocketClient] Reconnecting... (attempt ${this.reconnectAttempts})`)
+      this.connect()
+    }, delay * Math.pow(1.5, this.reconnectAttempts - 1))
+  }
+
+  /**
+   * Send a message immediately
+   */
+  private sendMessage<T>(message: WebSocketMessage<T>): void {
+    if (this.ws?.readyState === WebSocket.OPEN) {
+      try {
+        this.ws.send(JSON.stringify(message))
+      } catch (error) {
+        console.error('[WebSocketClient] Failed to send message:', error)
+        if (!this.messageQueue.includes(message as unknown as WebSocketMessage)) {
+          this.messageQueue.push(message as unknown as WebSocketMessage)
+        }
+      }
+    } else {
+      this.messageQueue.push(message as unknown as WebSocketMessage)
+    }
+  }
+
+  /**
+   * Flush queued messages
+   */
+  private flushQueue(): void {
+    while (this.messageQueue.length > 0) {
+      const message = this.messageQueue.shift()
+      if (message) {
+        this.sendMessage(message)
+      }
+    }
+  }
+
+  /**
+   * Dispatch message to appropriate handler
+   */
+  private dispatchMessage(message: WebSocketMessage): void {
+    const { type, payload } = message
+
+    switch (type) {
+      case 'room:joined':
+        this.handlers.onRoomJoined?.(payload.roomId, payload.users)
+        break
+      case 'user:presence':
+        this.handlers.onUserPresence?.(payload)
+        break
+      case 'user:cursor':
+        this.handlers.onCursorMove?.(payload)
+        break
+      case 'object:create':
+        this.handlers.onObjectCreate?.(payload)
+        break
+      case 'object:update':
+        this.handlers.onObjectUpdate?.(payload)
+        break
+      case 'object:delete':
+        this.handlers.onObjectDelete?.(payload)
+        break
+      case 'canvas:sync':
+        this.handlers.onCanvasSync?.(payload)
+        break
+      case 'physics:throw':
+      case 'physics:collision':
+      case 'physics:attract':
+      case 'physics:repel':
+        this.handlers.onPhysicsEvent?.({ ...payload, type })
+        break
+      case 'connection:error':
+      case 'room:error':
+      case 'error':
+        this.handlers.onError?.(payload as ErrorPayload)
+        break
+      default:
+        console.debug('[WebSocketClient] Unhandled message type:', type)
+    }
+  }
+
+  /**
+   * Start heartbeat interval
+   */
+  private startHeartbeat(): void {
+    this.stopHeartbeat()
+    this.heartbeatInterval = setInterval(() => {
+      if (this.isConnected()) {
+        this.send('connection:init', { type: 'heartbeat' })
+      }
+    }, this.config.heartbeatInterval || 30000)
+  }
+
+  /**
+   * Stop heartbeat interval
+   */
+  private stopHeartbeat(): void {
+    if (this.heartbeatInterval) {
+      clearInterval(this.heartbeatInterval)
+      this.heartbeatInterval = null
+    }
+  }
+
+  /**
+   * Set connection state
+   */
+  private setState(state: ConnectionState): void {
+    this.state = state
+  }
+
+  /**
+   * Clean up resources
+   */
+  private cleanup(): void {
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout)
+      this.reconnectTimeout = null
+    }
+    this.stopHeartbeat()
+  }
+}
+
+/**
+ * Create a WebSocket client instance
+ */
+export function createWebSocketClient(config: WebSocketConfig): WebSocketClient {
+  return new WebSocketClient(config)
+}
