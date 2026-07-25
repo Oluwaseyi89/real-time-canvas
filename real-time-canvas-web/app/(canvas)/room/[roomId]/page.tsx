@@ -9,6 +9,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { useCollaboration } from '@/hooks/useCollaboration'
 import { usePhysics } from '@/hooks/usePhysics'
 import { useMinimap } from '@/hooks/useMinimap'
+import { useOfflineSync } from '@/hooks/useOfflineSync'
 import { ZoomControls } from '@/components/canvas/ZoomControls'
 import { Toolbar } from '@/components/canvas/tools/Toolbar'
 import { PhysicsControls } from '@/components/canvas/physics/PhysicsControls'
@@ -33,6 +34,27 @@ export default function CanvasRoomPage() {
   
   const canvasElementRef = useRef<HTMLCanvasElement | null>(null)
 
+  // Offline sync setup - must be declared before useCanvas
+  const {
+    queueOperation,
+    processQueue,
+    status: offlineStatus,
+    isReady: offlineReady,
+  } = useOfflineSync({
+    roomId,
+    userId,
+    enabled: true,
+    onSyncStart: () => {
+      console.log('[OfflineSync] Sync started')
+    },
+    onSyncComplete: () => {
+      console.log('[OfflineSync] Sync completed')
+    },
+    onSyncError: (error) => {
+      console.error('[OfflineSync] Sync error:', error)
+    },
+  })
+
   const {
     canvasRef,
     containerRef,
@@ -48,9 +70,23 @@ export default function CanvasRoomPage() {
     fitToView,
     isInitialized,
   } = useCanvas({
-    onObjectAdded: (obj) => {
+    onObjectAdded: async (obj) => {
       const custom = obj as any
       if (custom.id && custom.type) {
+        // Queue offline operation
+        try {
+          await queueOperation('object:create', {
+            objectId: custom.id,
+            type: custom.type,
+            data: custom.toObject ? custom.toObject() : {},
+            position: { x: custom.left || 0, y: custom.top || 0 },
+            userId,
+            timestamp: Date.now(),
+          })
+        } catch (error) {
+          console.error('[CanvasRoom] Failed to queue operation:', error)
+        }
+
         syncObject({
           objectId: custom.id,
           type: custom.type,
@@ -101,6 +137,10 @@ export default function CanvasRoomPage() {
     autoConnect: false,
     onConnect: () => {
       console.log('[CanvasRoom] WebSocket connected')
+      // Process offline queue when connected
+      if (offlineReady) {
+        processQueue()
+      }
     },
     onDisconnect: () => {
       console.log('[CanvasRoom] WebSocket disconnected')
@@ -343,11 +383,21 @@ export default function CanvasRoomPage() {
         <div className="text-gray-400 text-[10px] mt-0.5">
           {isPhysicsRunning ? '⚡ Physics active' : '⏸️ Physics paused'}
         </div>
+        {offlineStatus.pendingCount > 0 && (
+          <div className="text-gray-400 text-[10px] mt-0.5">
+            📦 {offlineStatus.pendingCount} offline operations pending
+          </div>
+        )}
+        {!offlineStatus.isOnline && (
+          <div className="text-yellow-500 text-[10px] mt-0.5">
+            📡 Offline mode
+          </div>
+        )}
       </div>
 
       {/* Canvas instructions */}
       <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-10 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-lg shadow border border-border-light text-xs text-gray-500">
-        🖱️ Scroll to zoom • Drag to pan • Click objects to select • ⚡ Physics enabled • 🗺️ Radar shows users
+        🖱️ Scroll to zoom • Drag to pan • Click objects to select • ⚡ Physics enabled • 🗺️ Radar shows users • 📦 Offline support
       </div>
     </div>
   )
