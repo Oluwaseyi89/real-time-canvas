@@ -16,7 +16,8 @@ import {
   RectProps,
   CircleProps,
   ImageProps,
-  FabricObjectProps
+  FabricObjectProps,
+  TMat2D,
 } from 'fabric'
 import { OBJECT_DEFAULTS } from './fabricConfig'
 import { v4 as uuidv4 } from 'uuid'
@@ -199,16 +200,27 @@ export class ObjectFactory {
     const defaults = OBJECT_DEFAULTS.image
     const { createdBy, metadata, ...fabricOptions } = options
 
-    const img = await FabricImage.fromURL(url, {
-      crossOrigin: 'anonymous',
-    })
+    try {
+      const img = await FabricImage.fromURL(url, {
+        crossOrigin: 'anonymous',
+      })
 
-    img.set({
-      ...defaults,
-      ...fabricOptions,
-    })
+      img.set({
+        ...defaults,
+        ...fabricOptions,
+      })
 
-    return attachCustomProps(img, 'image', { createdBy, metadata })
+      return attachCustomProps(img, 'image', { 
+        createdBy, 
+        metadata: {
+          src: url,
+          ...metadata,
+        }
+      })
+    } catch (error) {
+      console.error('[ObjectFactory] Failed to create image:', error)
+      throw new Error(`Failed to load image from URL: ${url}`)
+    }
   }
 
   /**
@@ -268,13 +280,14 @@ export class ObjectFactory {
       createdBy,
       metadata: {
         audioUrl,
+        duration: 0,
         ...metadata,
       },
     })
   }
 
   /**
-   * Create a generic object with custom type
+   * Create a custom object with arbitrary type
    * @param type - Object type
    * @param options - Object options
    * @returns Fabric.js object with custom properties
@@ -291,6 +304,28 @@ export class ObjectFactory {
 
     return attachCustomProps(obj, type, { createdBy, metadata })
   }
+
+  /**
+   * Create a shape with specified geometry
+   * @param shapeType - Type of shape to create
+   * @param options - Shape options
+   * @returns Fabric.js object with custom properties
+   */
+  static createShape(
+    shapeType: 'rect' | 'circle' | 'triangle',
+    options: WithCustomProps<RectProps & CircleProps & FabricObjectProps> = {}
+  ): FabricObject & CustomObjectProps {
+    switch (shapeType) {
+      case 'rect':
+        return this.createRectangle(options)
+      case 'circle':
+        return this.createCircle(options)
+      case 'triangle':
+        return this.createTriangle(options)
+      default:
+        throw new Error(`Unsupported shape type: ${shapeType}`)
+    }
+  }
 }
 
 /**
@@ -300,12 +335,13 @@ export function getCanvasObjectProperties(
   obj: FabricObject
 ): CustomObjectProps | null {
   if (isCanvasObject(obj)) {
+    const custom = obj as Partial<CustomObjectProps>
     return {
-      id: obj.id,
-      type: obj.type,
-      createdAt: obj.createdAt,
-      createdBy: obj.createdBy,
-      metadata: obj.metadata,
+      id: custom.id as string,
+      type: custom.type as string,
+      createdAt: custom.createdAt as Date,
+      createdBy: custom.createdBy,
+      metadata: custom.metadata,
     }
   }
   return null
@@ -315,12 +351,33 @@ export function getCanvasObjectProperties(
  * Type guard utility to check if a Fabric object has custom canvas properties
  */
 export function isCanvasObject(obj: FabricObject): obj is CanvasObject {
+  const custom = obj as Partial<CustomObjectProps>
   return (
     'id' in obj &&
-    typeof (obj as Partial<CustomObjectProps>).id === 'string' &&
+    typeof custom.id === 'string' &&
     'type' in obj &&
-    typeof (obj as Partial<CustomObjectProps>).type === 'string' &&
+    typeof custom.type === 'string' &&
     'createdAt' in obj &&
-    (obj as Partial<CustomObjectProps>).createdAt instanceof Date
+    custom.createdAt instanceof Date
   )
+}
+
+/**
+ * Get object type safely
+ */
+export function getObjectType(obj: FabricObject): string | null {
+  if (isCanvasObject(obj)) {
+    return (obj as CanvasObject).type
+  }
+  return null
+}
+
+/**
+ * Get object ID safely
+ */
+export function getObjectId(obj: FabricObject): string | null {
+  if (isCanvasObject(obj)) {
+    return (obj as CanvasObject).id
+  }
+  return null
 }
