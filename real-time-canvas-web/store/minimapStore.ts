@@ -1,0 +1,87 @@
+/**
+ * Zustand store for minimap state management
+ */
+
+import { create } from 'zustand'
+import { persist } from 'zustand/middleware'
+import type { MinimapState, MinimapConfig, MinimapPosition } from '@/types/minimap'
+
+const DEFAULT_CONFIG: MinimapConfig = {
+  width: 240,
+  height: 160,
+  scale: 0.1,
+  backgroundColor: '#f8f9fa',
+  borderColor: '#e5e7eb',
+  borderWidth: 1,
+  cornerRadius: 8,
+  showGrid: true,
+  gridColor: '#e5e7eb',
+  gridSize: 20,
+  showUserLabels: true,
+  userDotRadius: 4,
+  showObjectPreview: true,
+}
+
+const DEFAULT_POSITION: MinimapPosition = {
+  x: 16,
+  y: 16,
+  anchor: 'bottom-right',
+}
+
+interface MinimapStore extends MinimapState {
+  // Actions
+  toggleVisibility: () => void
+  toggleCollapse: () => void
+  setPosition: (position: MinimapPosition) => void
+  setConfig: (config: Partial<MinimapConfig>) => void
+  reset: () => void
+}
+
+export const useMinimapStore = create<MinimapStore>()(
+  persist(
+    (set, get) => ({
+      isVisible: true,
+      isCollapsed: false,
+      position: DEFAULT_POSITION,
+      zoom: 1,
+      config: DEFAULT_CONFIG,
+
+      toggleVisibility: () => {
+        set((state) => ({ isVisible: !state.isVisible }))
+      },
+
+      toggleCollapse: () => {
+        set((state) => ({ isCollapsed: !state.isCollapsed }))
+      },
+
+      setPosition: (position: MinimapPosition) => {
+        set({ position })
+      },
+
+      setConfig: (config: Partial<MinimapConfig>) => {
+        set((state) => ({
+          config: { ...state.config, ...config },
+        }))
+      },
+
+      reset: () => {
+        set({
+          isVisible: true,
+          isCollapsed: false,
+          position: DEFAULT_POSITION,
+          zoom: 1,
+          config: DEFAULT_CONFIG,
+        })
+      },
+    }),
+    {
+      name: 'minimap-store',
+      partialize: (state) => ({
+        isVisible: state.isVisible,
+        isCollapsed: state.isCollapsed,
+        position: state.position,
+        config: state.config,
+      }),
+    }
+  )
+)
