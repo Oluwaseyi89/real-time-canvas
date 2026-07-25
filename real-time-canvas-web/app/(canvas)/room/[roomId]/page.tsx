@@ -7,15 +7,16 @@ import { useWebSocket } from '@/hooks/useWebSocket'
 import { useRoom } from '@/hooks/useRoom'
 import { useAuth } from '@/hooks/useAuth'
 import { useCollaboration } from '@/hooks/useCollaboration'
+import { usePhysics } from '@/hooks/usePhysics'
 import { ZoomControls } from '@/components/canvas/ZoomControls'
 import { Toolbar } from '@/components/canvas/tools/Toolbar'
+import { PhysicsControls } from '@/components/canvas/physics/PhysicsControls'
 import { CursorTracker } from '@/components/collaboration/CursorTracker'
 import { UserPresence } from '@/components/collaboration/UserPresence'
 import { TypingIndicator } from '@/components/collaboration/TypingIndicator'
 import { RoomInvite } from '@/components/room/RoomInvite'
 import { RoomInfo } from '@/components/room/RoomInfo'
 import { useCanvasStore } from '@/store/canvasStore'
-import { useCollaborationStore } from '@/store/collaborationStore'
 
 export default function CanvasRoomPage() {
   const params = useParams()
@@ -57,7 +58,35 @@ export default function CanvasRoomPage() {
           userId: userId,
           timestamp: Date.now(),
         })
+
+        // Add physics body for the object
+        addPhysicsBodyForObject(obj)
       }
+    },
+  })
+
+  // Physics setup
+  const { 
+    engine: physicsEngine,
+    isRunning: isPhysicsRunning,
+    addBody,
+    removeBody,
+    throwBody,
+    attractBody,
+    repelBody,
+    initEngine,
+  } = usePhysics({
+    enabled: true,
+    gravity: { x: 0, y: 1 },
+    autoStart: true,
+    onCollision: (bodyA, bodyB) => {
+      console.log('[Physics] Collision:', bodyA.id, bodyB.id)
+      // Broadcast collision via WebSocket
+      send('physics:collision', {
+        objectId: bodyA.id,
+        targetId: bodyB.id,
+        force: 5,
+      })
     },
   })
 
@@ -95,6 +124,99 @@ export default function CanvasRoomPage() {
 
   // Track cursor position for broadcasting
   const lastCursorPos = useRef<{ x: number; y: number } | null>(null)
+
+  /**
+   * Add physics body for a canvas object
+   */
+  const addPhysicsBodyForObject = useCallback((obj: fabric.Object) => {
+    const custom = obj as any
+    if (!custom.id || !physicsEngine) return
+
+    const bodyConfig = {
+      id: custom.id,
+      type: 'rectangle' as const,
+      x: obj.left || 0 + (obj.width || 50) / 2,
+      y: obj.top || 0 + (obj.height || 50) / 2,
+      width: obj.width || 50,
+      height: obj.height || 50,
+      restitution: 0.5,
+      friction: 0.1,
+      density: 0.001,
+      plugin: {
+        canvasObjectId: custom.id,
+        metadata: {
+          type: custom.type,
+          createdAt: new Date(),
+        },
+      },
+    }
+
+    const body = addBody(bodyConfig, obj)
+    return body
+  }, [physicsEngine, addBody])
+
+  /**
+   * Handle throwing an object
+   */
+  const handleThrow = useCallback((objectId: string, velocity: { x: number; y: number }) => {
+    throwBody(objectId, {
+      velocity,
+      angularVelocity: (Math.random() - 0.5) * 0.1,
+      force: 1,
+    })
+
+    // Broadcast throw via WebSocket
+    send('physics:throw', {
+      objectId,
+      velocity,
+    })
+  }, [throwBody, send])
+
+  /**
+   * Handle attraction
+   */
+  const handleAttract = useCallback((objectId: string, targetId: string) => {
+    attractBody(objectId, {
+      targetId,
+      strength: 0.01,
+      radius: 300,
+      type: 'attract',
+    })
+
+    send('physics:attract', {
+      objectId,
+      targetId,
+      force: 0.01,
+    })
+  }, [attractBody, send])
+
+  /**
+   * Handle repulsion
+   */
+  const handleRepel = useCallback((objectId: string, targetId: string) => {
+    repelBody(objectId, {
+      targetId,
+      strength: 0.02,
+      radius: 200,
+      type: 'repel',
+    })
+
+    send('physics:repel', {
+      objectId,
+      targetId,
+      force: 0.02,
+    })
+  }, [repelBody, send])
+
+  // Initialize physics engine when canvas is ready
+  useEffect(() => {
+    if (isInitialized && canvasRef.current) {
+      const canvas = (canvasRef as any).current
+      if (canvas) {
+        initEngine(canvas)
+      }
+    }
+  }, [isInitialized, canvasRef, initEngine])
 
   // Handle mouse move for cursor broadcasting
   const handleMouseMove = useCallback((e: MouseEvent) => {
@@ -183,11 +305,8 @@ export default function CanvasRoomPage() {
       >
         <canvas
           ref={(el) => {
-            // Store in local ref for mouse events
             canvasElementRef.current = el
-            // Forward to the hook's ref
             if (canvasRef) {
-              // canvasRef is a RefObject, assign its current property
               ;(canvasRef as React.MutableRefObject<HTMLCanvasElement | null>).current = el
             }
           }}
@@ -207,6 +326,11 @@ export default function CanvasRoomPage() {
       {/* User presence - positioned top center */}
       <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
         <UserPresence className="bg-white/90 backdrop-blur-sm px-3 py-2 rounded-lg shadow-lg border border-border-light" />
+      </div>
+
+      {/* Physics controls - positioned top-right below room info */}
+      <div className="absolute top-20 right-4 z-20 w-56">
+        <PhysicsControls />
       </div>
 
       {/* Room invite - positioned bottom-left */}
@@ -267,11 +391,14 @@ export default function CanvasRoomPage() {
         <div className="text-gray-400 text-[10px] mt-1">
           {isInitialized ? '✅ Canvas ready' : '⏳ Initializing...'}
         </div>
+        <div className="text-gray-400 text-[10px] mt-0.5">
+          {isPhysicsRunning ? '⚡ Physics active' : '⏸️ Physics paused'}
+        </div>
       </div>
 
       {/* Canvas instructions */}
       <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-10 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-lg shadow border border-border-light text-xs text-gray-500">
-        🖱️ Scroll to zoom • Drag to pan • Click objects to select
+        🖱️ Scroll to zoom • Drag to pan • Click objects to select • ⚡ Physics enabled
       </div>
     </div>
   )
