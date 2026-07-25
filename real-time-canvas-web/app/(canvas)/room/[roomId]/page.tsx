@@ -4,6 +4,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import { useCanvas } from '@/hooks/useCanvas'
 import { ZoomControls } from '@/components/canvas/ZoomControls'
+import { Toolbar } from '@/components/canvas/tools/Toolbar'
 import { useCanvasStore } from '@/store/canvasStore'
 
 export default function CanvasRoomPage() {
@@ -21,6 +22,7 @@ export default function CanvasRoomPage() {
     addRectangle,
     addCircle,
     addStickyNote,
+    addImage,
     zoomIn,
     zoomOut,
     resetView,
@@ -76,6 +78,11 @@ export default function CanvasRoomPage() {
         />
       </div>
 
+      {/* Toolbar - positioned top-left */}
+      <div className="absolute top-4 left-4 z-20">
+        <Toolbar />
+      </div>
+
       {/* Zoom controls */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
         <ZoomControls
@@ -85,46 +92,6 @@ export default function CanvasRoomPage() {
           onReset={resetView}
           onFitToView={fitToView}
         />
-      </div>
-
-      {/* Toolbar placeholder */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10 flex items-center gap-2 bg-white rounded-lg shadow-lg border border-border-light p-2">
-        <button
-          onClick={() => addText('Hello World!')}
-          className="toolbar-button w-10 h-10 text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-          title="Add Text"
-        >
-          <span className="text-lg">T</span>
-        </button>
-        <button
-          onClick={() => addRectangle({ fill: '#3b82f6' })}
-          className="toolbar-button w-10 h-10 text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-          title="Add Rectangle"
-        >
-          <span className="text-lg">▭</span>
-        </button>
-        <button
-          onClick={() => addCircle({ fill: '#ef4444' })}
-          className="toolbar-button w-10 h-10 text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-          title="Add Circle"
-        >
-          <span className="text-lg">●</span>
-        </button>
-        <button
-          onClick={() => addStickyNote('New sticky note!')}
-          className="toolbar-button w-10 h-10 text-gray-700 hover:bg-gray-100 rounded-md transition-colors"
-          title="Add Sticky Note"
-        >
-          <span className="text-lg">📝</span>
-        </button>
-        <div className="w-px h-8 bg-gray-300 mx-1" />
-        <button
-          onClick={() => useCanvasStore.getState().clearAllObjects()}
-          className="toolbar-button w-10 h-10 text-red-500 hover:bg-red-50 rounded-md transition-colors"
-          title="Clear All"
-        >
-          <span className="text-lg">✕</span>
-        </button>
       </div>
 
       {/* Room info */}
