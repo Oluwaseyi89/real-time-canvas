@@ -3,7 +3,7 @@
  * Provides centralized configuration for canvas instances
  */
 
-import { fabric } from 'fabric'
+import { Canvas, Object as FabricObject, TMat2D } from 'fabric'
 
 /**
  * Default canvas configuration options
@@ -18,13 +18,10 @@ export const CANVAS_CONFIG = {
   renderOnAddRemove: true,
   enableRetinaScaling: true,
   // Performance optimization for 100+ objects
-  renderOnAddRemove: false,
   skipOffscreen: true,
-  // Infinite canvas settings
-  viewportTransform: [1, 0, 0, 1, 0, 0],
-  width: window.innerWidth,
-  height: window.innerHeight,
-} as const
+  // Infinite canvas default viewport transform matrix [a, b, c, d, e, f]
+  viewportTransform: [1, 0, 0, 1, 0, 0] as TMat2D,
+}
 
 /**
  * Object creation defaults for different types
@@ -98,24 +95,30 @@ export const PERFORMANCE_CONFIG = {
   objectCacheSize: 50,
 } as const
 
+// WeakMap store to keep resize handlers without polluting the Canvas instance with `any`
+const resizeHandlers = new WeakMap<Canvas, () => void>()
+
 /**
  * Initialize a Fabric.js canvas with optimized settings
  */
 export function initializeCanvas(
   canvasElement: HTMLCanvasElement,
   options: Partial<typeof CANVAS_CONFIG> = {}
-): fabric.Canvas {
+): Canvas {
+  const parentWidth = canvasElement.parentElement?.clientWidth ?? (typeof window !== 'undefined' ? window.innerWidth : 800)
+  const parentHeight = canvasElement.parentElement?.clientHeight ?? (typeof window !== 'undefined' ? window.innerHeight : 600)
+
   const config = {
     ...CANVAS_CONFIG,
     ...options,
-    width: canvasElement.parentElement?.clientWidth || window.innerWidth,
-    height: canvasElement.parentElement?.clientHeight || window.innerHeight,
+    width: parentWidth,
+    height: parentHeight,
   }
 
-  const canvas = new fabric.Canvas(canvasElement, config)
+  const canvas = new Canvas(canvasElement, config)
 
   // Enable object caching for performance
-  fabric.Object.prototype.objectCaching = true
+  FabricObject.prototype.objectCaching = true
 
   // Set default rendering options
   canvas.renderOnAddRemove = true
@@ -124,16 +127,18 @@ export function initializeCanvas(
   // Handle window resize
   const handleResize = () => {
     if (canvasElement.parentElement) {
-      canvas.setWidth(canvasElement.parentElement.clientWidth)
-      canvas.setHeight(canvasElement.parentElement.clientHeight)
+      canvas.setDimensions({
+        width: canvasElement.parentElement.clientWidth,
+        height: canvasElement.parentElement.clientHeight,
+      })
       canvas.renderAll()
     }
   }
 
-  window.addEventListener('resize', handleResize)
-
-  // Store resize handler for cleanup
-  ;(canvas as any).__resizeHandler = handleResize
+  if (typeof window !== 'undefined') {
+    window.addEventListener('resize', handleResize)
+    resizeHandlers.set(canvas, handleResize)
+  }
 
   return canvas
 }
@@ -141,9 +146,11 @@ export function initializeCanvas(
 /**
  * Clean up canvas resources
  */
-export function disposeCanvas(canvas: fabric.Canvas): void {
-  if ((canvas as any).__resizeHandler) {
-    window.removeEventListener('resize', (canvas as any).__resizeHandler)
+export function disposeCanvas(canvas: Canvas): void {
+  const handleResize = resizeHandlers.get(canvas)
+  if (handleResize && typeof window !== 'undefined') {
+    window.removeEventListener('resize', handleResize)
+    resizeHandlers.delete(canvas)
   }
-  canvas.dispose()
+  void canvas.dispose()
 }

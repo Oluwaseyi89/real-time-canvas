@@ -3,20 +3,63 @@
  * Provides methods to create text, shapes, images, sticky notes, and audio objects
  */
 
-import { fabric } from 'fabric'
+import { 
+  FabricObject, 
+  IText, 
+  Rect, 
+  Circle, 
+  Triangle, 
+  Group, 
+  FabricImage,
+  TOptions,
+  ITextProps,
+  RectProps,
+  CircleProps,
+  ImageProps,
+  FabricObjectProps
+} from 'fabric'
 import { OBJECT_DEFAULTS } from './fabricConfig'
 import { v4 as uuidv4 } from 'uuid'
 
 /**
- * Base interface for all canvas objects
- * Extends Fabric.js object with custom properties
+ * Base custom properties appended to Fabric.js canvas objects
  */
-export interface CanvasObject extends fabric.Object {
+export interface CustomObjectProps {
   id: string
   type: string
   createdAt: Date
   createdBy?: string
-  metadata?: Record<string, any>
+  metadata?: Record<string, unknown>
+}
+
+/**
+ * Extended Fabric.js Object with custom canvas fields
+ */
+export type CanvasObject = FabricObject & CustomObjectProps
+
+/**
+ * Options helper that allows passing custom metadata during creation
+ */
+export type WithCustomProps<T> = TOptions<T> & {
+  createdBy?: string
+  metadata?: Record<string, unknown>
+}
+
+/**
+ * Helper function to attach custom application properties to a Fabric object
+ */
+function attachCustomProps<T extends FabricObject>(
+  obj: T,
+  type: string,
+  options: { createdBy?: string; metadata?: Record<string, unknown> } = {}
+): T & CustomObjectProps {
+  const customObj = obj as T & CustomObjectProps
+  customObj.id = uuidv4()
+  customObj.type = type
+  customObj.createdAt = new Date()
+  if (options.createdBy) customObj.createdBy = options.createdBy
+  if (options.metadata) customObj.metadata = options.metadata
+  return customObj
 }
 
 /**
@@ -31,19 +74,17 @@ export class ObjectFactory {
    */
   static createText(
     text: string,
-    options: Partial<fabric.ITextOptions> = {}
-  ): fabric.IText {
-    const id = uuidv4()
+    options: WithCustomProps<ITextProps> = {}
+  ): IText & CustomObjectProps {
     const defaults = OBJECT_DEFAULTS.text
+    const { createdBy, metadata, ...fabricOptions } = options
 
-    return new fabric.IText(text, {
+    const textObj = new IText(text, {
       ...defaults,
-      ...options,
-      id,
-      type: 'text',
-      createdAt: new Date(),
-      metadata: options.metadata || {},
-    }) as fabric.IText & CanvasObject
+      ...fabricOptions,
+    })
+
+    return attachCustomProps(textObj, 'text', { createdBy, metadata })
   }
 
   /**
@@ -52,19 +93,17 @@ export class ObjectFactory {
    * @returns Fabric.js rectangle with custom properties
    */
   static createRectangle(
-    options: Partial<fabric.IRectOptions> = {}
-  ): fabric.Rect {
-    const id = uuidv4()
+    options: WithCustomProps<RectProps> = {}
+  ): Rect & CustomObjectProps {
     const defaults = OBJECT_DEFAULTS.shape
+    const { createdBy, metadata, ...fabricOptions } = options
 
-    return new fabric.Rect({
+    const rectObj = new Rect({
       ...defaults,
-      ...options,
-      id,
-      type: 'rect',
-      createdAt: new Date(),
-      metadata: options.metadata || {},
-    }) as fabric.Rect & CanvasObject
+      ...fabricOptions,
+    })
+
+    return attachCustomProps(rectObj, 'rect', { createdBy, metadata })
   }
 
   /**
@@ -73,19 +112,17 @@ export class ObjectFactory {
    * @returns Fabric.js circle with custom properties
    */
   static createCircle(
-    options: Partial<fabric.ICircleOptions> = {}
-  ): fabric.Circle {
-    const id = uuidv4()
+    options: WithCustomProps<CircleProps> = {}
+  ): Circle & CustomObjectProps {
     const defaults = OBJECT_DEFAULTS.shape
+    const { createdBy, metadata, ...fabricOptions } = options
 
-    return new fabric.Circle({
+    const circleObj = new Circle({
       ...defaults,
-      ...options,
-      id,
-      type: 'circle',
-      createdAt: new Date(),
-      metadata: options.metadata || {},
-    }) as fabric.Circle & CanvasObject
+      ...fabricOptions,
+    })
+
+    return attachCustomProps(circleObj, 'circle', { createdBy, metadata })
   }
 
   /**
@@ -94,51 +131,45 @@ export class ObjectFactory {
    * @returns Fabric.js triangle with custom properties
    */
   static createTriangle(
-    options: Partial<fabric.ITriangleOptions> = {}
-  ): fabric.Triangle {
-    const id = uuidv4()
+    options: WithCustomProps<FabricObjectProps> = {}
+  ): Triangle & CustomObjectProps {
     const defaults = OBJECT_DEFAULTS.shape
+    const { createdBy, metadata, ...fabricOptions } = options
 
-    return new fabric.Triangle({
+    const triangleObj = new Triangle({
       ...defaults,
-      ...options,
-      id,
-      type: 'triangle',
-      createdAt: new Date(),
-      metadata: options.metadata || {},
-    }) as fabric.Triangle & CanvasObject
+      ...fabricOptions,
+    })
+
+    return attachCustomProps(triangleObj, 'triangle', { createdBy, metadata })
   }
 
   /**
    * Create a sticky note object
    * @param text - Sticky note text content
    * @param options - Additional options
-   * @returns Fabric.js rect with sticky note styling
+   * @returns Fabric.js group with sticky note styling
    */
   static createStickyNote(
     text: string,
-    options: Partial<fabric.IRectOptions> = {}
-  ): fabric.Rect {
-    const id = uuidv4()
+    options: WithCustomProps<RectProps> = {}
+  ): Group & CustomObjectProps {
     const defaults = OBJECT_DEFAULTS.sticky
+    const { createdBy, metadata, ...fabricOptions } = options
 
-    const rect = new fabric.Rect({
+    const rect = new Rect({
       ...defaults,
-      ...options,
-      id,
-      type: 'sticky',
-      createdAt: new Date(),
-      metadata: options.metadata || {},
-    }) as fabric.Rect & CanvasObject
+      ...fabricOptions,
+    })
 
     // Add text to sticky note
-    const textObj = new fabric.IText(text, {
+    const textObj = new IText(text, {
       fontSize: 14,
       fontFamily: 'Inter, sans-serif',
       fill: '#1a1a1a',
       left: 10,
       top: 10,
-      width: defaults.width - 20,
+      width: (defaults.width || 200) - 20,
       textAlign: 'left',
       lineHeight: 1.5,
       hasControls: false,
@@ -147,48 +178,37 @@ export class ObjectFactory {
       evented: false,
     })
 
-    const group = new fabric.Group([rect, textObj], {
-      ...options,
-      id,
-      type: 'sticky-group',
-      createdAt: new Date(),
+    const group = new Group([rect, textObj], {
+      ...fabricOptions,
       subTargetCheck: true,
-      metadata: options.metadata || {},
-    }) as fabric.Group & CanvasObject
+    })
 
-    return group
+    return attachCustomProps(group, 'sticky-group', { createdBy, metadata })
   }
 
   /**
-   * Create an image object from a URL
+   * Create an image object from a URL (Fabric v6 Promise-based API)
    * @param url - Image URL
    * @param options - Image options
    * @returns Promise with Fabric.js image
    */
   static async createImage(
     url: string,
-    options: Partial<fabric.IImageOptions> = {}
-  ): Promise<fabric.Image> {
-    const id = uuidv4()
+    options: WithCustomProps<ImageProps> = {}
+  ): Promise<FabricImage & CustomObjectProps> {
     const defaults = OBJECT_DEFAULTS.image
+    const { createdBy, metadata, ...fabricOptions } = options
 
-    return new Promise((resolve, reject) => {
-      fabric.Image.fromURL(
-        url,
-        (img) => {
-          img.set({
-            ...defaults,
-            ...options,
-            id,
-            type: 'image',
-            createdAt: new Date(),
-            metadata: options.metadata || {},
-          } as any)
-          resolve(img as fabric.Image & CanvasObject)
-        },
-        { crossOrigin: 'anonymous' }
-      )
+    const img = await FabricImage.fromURL(url, {
+      crossOrigin: 'anonymous',
     })
+
+    img.set({
+      ...defaults,
+      ...fabricOptions,
+    })
+
+    return attachCustomProps(img, 'image', { createdBy, metadata })
   }
 
   /**
@@ -199,13 +219,13 @@ export class ObjectFactory {
    */
   static createAudioObject(
     audioData: string | Blob,
-    options: Partial<fabric.IRectOptions> = {}
-  ): fabric.Group {
-    const id = uuidv4()
+    options: WithCustomProps<RectProps> = {}
+  ): Group & CustomObjectProps {
     const audioUrl = typeof audioData === 'string' ? audioData : URL.createObjectURL(audioData)
+    const { createdBy, metadata, ...fabricOptions } = options
 
     // Create audio icon
-    const icon = new fabric.Text('🔊', {
+    const icon = new IText('🔊', {
       fontSize: 32,
       left: 15,
       top: 20,
@@ -216,7 +236,7 @@ export class ObjectFactory {
     })
 
     // Create background rectangle
-    const bg = new fabric.Rect({
+    const bg = new Rect({
       width: 120,
       height: 80,
       fill: '#e0e7ff',
@@ -224,11 +244,11 @@ export class ObjectFactory {
       strokeWidth: 2,
       rx: 8,
       ry: 8,
-      ...options,
+      ...fabricOptions,
     })
 
     // Create audio label
-    const label = new fabric.IText('🎵 Audio', {
+    const label = new IText('🎵 Audio', {
       fontSize: 12,
       fontFamily: 'Inter, sans-serif',
       fill: '#4338ca',
@@ -240,18 +260,17 @@ export class ObjectFactory {
       evented: false,
     })
 
-    const group = new fabric.Group([bg, icon, label], {
-      id,
-      type: 'audio',
-      createdAt: new Date(),
+    const group = new Group([bg, icon, label], {
+      subTargetCheck: true,
+    })
+
+    return attachCustomProps(group, 'audio', {
+      createdBy,
       metadata: {
         audioUrl,
-        ...options.metadata,
+        ...metadata,
       },
-      subTargetCheck: true,
-    }) as fabric.Group & CanvasObject
-
-    return group
+    })
   }
 
   /**
@@ -262,45 +281,46 @@ export class ObjectFactory {
    */
   static createCustomObject(
     type: string,
-    options: Partial<fabric.IObjectOptions> = {}
-  ): fabric.Object {
-    const id = uuidv4()
+    options: WithCustomProps<FabricObjectProps> = {}
+  ): FabricObject & CustomObjectProps {
+    const { createdBy, metadata, ...fabricOptions } = options
 
-    const obj = new fabric.Object({
-      ...options,
-      id,
-      type,
-      createdAt: new Date(),
-      metadata: options.metadata || {},
-    }) as fabric.Object & CanvasObject
+    const obj = new FabricObject({
+      ...fabricOptions,
+    })
 
-    return obj
+    return attachCustomProps(obj, type, { createdBy, metadata })
   }
 }
 
 /**
- * Utility to extract custom properties from Fabric.js objects
+ * Utility to extract custom properties from Fabric.js objects safely
  */
 export function getCanvasObjectProperties(
-  obj: fabric.Object
-): Partial<CanvasObject> | null {
-  const customObj = obj as any
-  if (customObj.id && customObj.type && customObj.createdAt) {
+  obj: FabricObject
+): CustomObjectProps | null {
+  if (isCanvasObject(obj)) {
     return {
-      id: customObj.id,
-      type: customObj.type,
-      createdAt: customObj.createdAt,
-      createdBy: customObj.createdBy,
-      metadata: customObj.metadata,
+      id: obj.id,
+      type: obj.type,
+      createdAt: obj.createdAt,
+      createdBy: obj.createdBy,
+      metadata: obj.metadata,
     }
   }
   return null
 }
 
 /**
- * Utility to check if an object is a custom canvas object
+ * Type guard utility to check if a Fabric object has custom canvas properties
  */
-export function isCanvasObject(obj: fabric.Object): boolean {
-  const customObj = obj as any
-  return !!(customObj.id && customObj.type && customObj.createdAt)
+export function isCanvasObject(obj: FabricObject): obj is CanvasObject {
+  return (
+    'id' in obj &&
+    typeof (obj as Partial<CustomObjectProps>).id === 'string' &&
+    'type' in obj &&
+    typeof (obj as Partial<CustomObjectProps>).type === 'string' &&
+    'createdAt' in obj &&
+    (obj as Partial<CustomObjectProps>).createdAt instanceof Date
+  )
 }

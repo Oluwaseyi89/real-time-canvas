@@ -4,17 +4,36 @@
  */
 
 import { useEffect, useRef, useState, useCallback } from 'react'
-import { fabric } from 'fabric'
+import {
+  Canvas,
+  FabricObject,
+  Point,
+  TPointerEvent,
+  ModifiedEvent,
+} from 'fabric'
 import { useCanvasStore } from '@/store/canvasStore'
 import { initializeCanvas, disposeCanvas, ZOOM_CONFIG } from '@/lib/canvas/fabricConfig'
 import { CanvasRenderer, createRenderer } from '@/lib/canvas/renderer'
-import { ObjectFactory } from '@/lib/canvas/objectFactory'
+import { ObjectFactory, CanvasObject, WithCustomProps } from '@/lib/canvas/objectFactory'
+import { ITextProps, RectProps, CircleProps, ImageProps } from 'fabric'
+
+// Event payload types for Fabric v6 canvas events
+interface FabricSelectionEvent {
+  selected?: FabricObject[]
+  deselected?: FabricObject[]
+  e?: TPointerEvent
+}
+
+interface FabricObjectEvent {
+  target?: FabricObject
+  e?: TPointerEvent
+}
 
 interface UseCanvasOptions {
-  onObjectAdded?: (obj: fabric.Object) => void
-  onObjectRemoved?: (obj: fabric.Object) => void
-  onObjectSelected?: (obj: fabric.Object) => void
-  onObjectModified?: (obj: fabric.Object) => void
+  onObjectAdded?: (obj: FabricObject) => void
+  onObjectRemoved?: (obj: FabricObject) => void
+  onObjectSelected?: (obj: FabricObject) => void
+  onObjectModified?: (obj: FabricObject) => void
   onZoomChange?: (zoom: number) => void
   onPanChange?: (pan: { x: number; y: number }) => void
 }
@@ -26,6 +45,12 @@ export function useCanvas(options: UseCanvasOptions = {}) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const rendererRef = useRef<CanvasRenderer | null>(null)
+
+  // Keep options ref updated to prevent unnecessary re-binding of canvas listeners
+  const optionsRef = useRef(options)
+  useEffect(() => {
+    optionsRef.current = options
+  })
 
   const [isInitialized, setIsInitialized] = useState(false)
 
@@ -41,97 +66,58 @@ export function useCanvas(options: UseCanvasOptions = {}) {
   } = useCanvasStore()
 
   /**
-   * Initialize the canvas
-   */
-  const initCanvas = useCallback(() => {
-    if (!canvasRef.current || !containerRef.current) {
-      console.warn('Canvas refs not available')
-      return
-    }
-
-    try {
-      // Initialize Fabric.js canvas
-      const fabricCanvas = initializeCanvas(canvasRef.current, {
-        width: containerRef.current.clientWidth,
-        height: containerRef.current.clientHeight,
-      })
-
-      // Set initial viewport
-      setViewport({
-        width: containerRef.current.clientWidth,
-        height: containerRef.current.clientHeight,
-      })
-
-      // Create renderer
-      rendererRef.current = createRenderer(fabricCanvas)
-
-      // Store canvas in store
-      setCanvas(fabricCanvas)
-
-      // Set up event listeners
-      setupCanvasEvents(fabricCanvas)
-
-      setIsInitialized(true)
-
-      // Callback
-      console.log('[useCanvas] Canvas initialized successfully')
-    } catch (error) {
-      console.error('[useCanvas] Failed to initialize canvas:', error)
-    }
-  }, [])
-
-  /**
    * Set up canvas event listeners
    */
-  const setupCanvasEvents = useCallback((fabricCanvas: fabric.Canvas) => {
+  const setupCanvasEvents = useCallback((fabricCanvas: Canvas) => {
     // Object added event
-    fabricCanvas.on('object:added', (e) => {
+    fabricCanvas.on('object:added', (e: FabricObjectEvent) => {
       if (e.target) {
-        options.onObjectAdded?.(e.target)
+        optionsRef.current.onObjectAdded?.(e.target)
       }
     })
 
     // Object removed event
-    fabricCanvas.on('object:removed', (e) => {
+    fabricCanvas.on('object:removed', (e: FabricObjectEvent) => {
       if (e.target) {
-        options.onObjectRemoved?.(e.target)
+        optionsRef.current.onObjectRemoved?.(e.target)
       }
     })
 
     // Object selected event
-    fabricCanvas.on('selection:created', (e) => {
+    fabricCanvas.on('selection:created', (e: FabricSelectionEvent) => {
       if (e.selected && e.selected.length > 0) {
-        options.onObjectSelected?.(e.selected[0])
+        optionsRef.current.onObjectSelected?.(e.selected[0])
       }
     })
 
-    // Object modified event
-    fabricCanvas.on('object:modified', (e) => {
+    // Object modified event using native Fabric v6 ModifiedEvent type
+    fabricCanvas.on('object:modified', (e: ModifiedEvent<TPointerEvent>) => {
       if (e.target) {
-        options.onObjectModified?.(e.target)
+        optionsRef.current.onObjectModified?.(e.target)
       }
     })
 
-    // Mouse wheel for zoom
-    fabricCanvas.on('mouse:wheel', (e) => {
-      const delta = e.e.deltaY
-      const pointer = fabricCanvas.getPointer(e.e)
+    // Mouse wheel zoom handling
+    fabricCanvas.on('mouse:wheel', (opt: { e: WheelEvent }) => {
+      const e = opt.e
+      const delta = e.deltaY
       const currentZoom = fabricCanvas.getZoom()
 
       let newZoom = currentZoom - delta * ZOOM_CONFIG.wheelZoomSpeed
       newZoom = Math.min(Math.max(newZoom, ZOOM_CONFIG.minZoom), ZOOM_CONFIG.maxZoom)
 
-      // Zoom at cursor position
+      const pointer = fabricCanvas.getScenePoint(e)
+
       fabricCanvas.zoomToPoint(
-        new fabric.Point(pointer.x, pointer.y),
+        new Point(pointer.x, pointer.y),
         newZoom
       )
 
       setZoom(newZoom)
-      options.onZoomChange?.(newZoom)
+      optionsRef.current.onZoomChange?.(newZoom)
 
-      e.e.preventDefault()
-      e.e.stopPropagation()
+      e.preventDefault()
+      e.stopPropagation()
     })
 
     // Mouse drag for pan
@@ -139,11 +125,11 @@ export function useCanvas(options: UseCanvasOptions = {}) {
     let lastPosX = 0
     let lastPosY = 0
 
-    fabricCanvas.on('mouse:down', (e) => {
-      if (e.e.button === 1 || e.e.button === 2) {
-        // Middle or right click
+    fabricCanvas.on('mouse:down', (opt: { e: TPointerEvent }) => {
+      const e = opt.e as MouseEvent
+      if (e.button === 1 || e.button === 2) {
         isDragging = true
-        const pointer = fabricCanvas.getPointer(e.e)
+        const pointer = fabricCanvas.getScenePoint(e)
         lastPosX = pointer.x
         lastPosY = pointer.y
         fabricCanvas.selection = false
@@ -151,20 +137,21 @@ export function useCanvas(options: UseCanvasOptions = {}) {
       }
     })
 
-    fabricCanvas.on('mouse:move', (e) => {
+    fabricCanvas.on('mouse:move', (opt: { e: TPointerEvent }) => {
       if (isDragging) {
-        const pointer = fabricCanvas.getPointer(e.e)
+        const e = opt.e as MouseEvent
+        const pointer = fabricCanvas.getScenePoint(e)
         const dx = pointer.x - lastPosX
         const dy = pointer.y - lastPosY
 
-        const vpt = fabricCanvas.viewportTransform || [1, 0, 0, 1, 0, 0]
+        const vpt = fabricCanvas.viewportTransform ? [...fabricCanvas.viewportTransform] : [1, 0, 0, 1, 0, 0]
         vpt[4] += dx
         vpt[5] += dy
-        fabricCanvas.setViewportTransform(vpt)
-        fabricCanvas.renderAll()
+        fabricCanvas.setViewportTransform(vpt as [number, number, number, number, number, number])
+        fabricCanvas.requestRenderAll()
 
         setPan({ x: vpt[4], y: vpt[5] })
-        options.onPanChange?.({ x: vpt[4], y: vpt[5] })
+        optionsRef.current.onPanChange?.({ x: vpt[4], y: vpt[5] })
 
         lastPosX = pointer.x
         lastPosY = pointer.y
@@ -179,16 +166,55 @@ export function useCanvas(options: UseCanvasOptions = {}) {
       }
     })
 
-    // Prevent context menu on canvas
-    fabricCanvas.wrapperEl.addEventListener('contextmenu', (e) => {
-      e.preventDefault()
-    })
-  }, [])
+    // Prevent default right-click context menu on canvas wrapper element
+    if (fabricCanvas.getSelectionElement()) {
+      const wrapper = fabricCanvas.getSelectionElement().parentElement
+      if (wrapper) {
+        wrapper.addEventListener('contextmenu', (e: Event) => e.preventDefault())
+      }
+    }
+  }, [setZoom, setPan])
 
   /**
-   * Add a text object to the canvas
+   * Initialize the canvas instance
    */
-  const addText = useCallback((text: string, options?: Partial<fabric.ITextOptions>) => {
+  const initCanvas = useCallback(() => {
+    if (!canvasRef.current || !containerRef.current) {
+      console.warn('[useCanvas] Canvas refs not available')
+      return
+    }
+
+    try {
+      const width = containerRef.current.clientWidth
+      const height = containerRef.current.clientHeight
+
+      // Initialize Fabric.js canvas
+      const fabricCanvas = initializeCanvas(canvasRef.current)
+      fabricCanvas.setDimensions({ width, height })
+
+      // Update store viewport state
+      setViewport({ width, height })
+
+      // Initialize renderer
+      rendererRef.current = createRenderer(fabricCanvas)
+
+      // Store canvas instance in global store
+      setCanvas(fabricCanvas)
+
+      // Bind canvas event listeners
+      setupCanvasEvents(fabricCanvas)
+
+      setIsInitialized(true)
+      console.log('[useCanvas] Canvas initialized successfully')
+    } catch (error) {
+      console.error('[useCanvas] Failed to initialize canvas:', error)
+    }
+  }, [setCanvas, setViewport, setupCanvasEvents])
+
+  /**
+   * Factory helpers to create & render elements
+   */
+  const addText = useCallback((text: string, options?: WithCustomProps<ITextProps>) => {
     if (!rendererRef.current) return
 
     const obj = ObjectFactory.createText(text, {
@@ -198,15 +224,12 @@ export function useCanvas(options: UseCanvasOptions = {}) {
     })
 
     rendererRef.current.addObject(obj, obj.id)
-    useCanvasStore.getState().addObject(obj as any)
+    useCanvasStore.getState().addObject(obj)
 
     return obj
   }, [])
 
-  /**
-   * Add a rectangle shape
-   */
-  const addRectangle = useCallback((options?: Partial<fabric.IRectOptions>) => {
+  const addRectangle = useCallback((options?: WithCustomProps<RectProps>) => {
     if (!rendererRef.current) return
 
     const obj = ObjectFactory.createRectangle({
@@ -218,15 +241,12 @@ export function useCanvas(options: UseCanvasOptions = {}) {
     })
 
     rendererRef.current.addObject(obj, obj.id)
-    useCanvasStore.getState().addObject(obj as any)
+    useCanvasStore.getState().addObject(obj)
 
     return obj
   }, [])
 
-  /**
-   * Add a circle shape
-   */
-  const addCircle = useCallback((options?: Partial<fabric.ICircleOptions>) => {
+  const addCircle = useCallback((options?: WithCustomProps<CircleProps>) => {
     if (!rendererRef.current) return
 
     const obj = ObjectFactory.createCircle({
@@ -237,15 +257,12 @@ export function useCanvas(options: UseCanvasOptions = {}) {
     })
 
     rendererRef.current.addObject(obj, obj.id)
-    useCanvasStore.getState().addObject(obj as any)
+    useCanvasStore.getState().addObject(obj)
 
     return obj
   }, [])
 
-  /**
-   * Add a sticky note
-   */
-  const addStickyNote = useCallback((text: string, options?: Partial<fabric.IRectOptions>) => {
+  const addStickyNote = useCallback((text: string, options?: WithCustomProps<RectProps>) => {
     if (!rendererRef.current) return
 
     const obj = ObjectFactory.createStickyNote(text, {
@@ -255,15 +272,12 @@ export function useCanvas(options: UseCanvasOptions = {}) {
     })
 
     rendererRef.current.addObject(obj, obj.id)
-    useCanvasStore.getState().addObject(obj as any)
+    useCanvasStore.getState().addObject(obj)
 
     return obj
   }, [])
 
-  /**
-   * Add an image
-   */
-  const addImage = useCallback(async (url: string, options?: Partial<fabric.IImageOptions>) => {
+  const addImage = useCallback(async (url: string, options?: WithCustomProps<ImageProps>) => {
     if (!rendererRef.current) return
 
     try {
@@ -274,7 +288,7 @@ export function useCanvas(options: UseCanvasOptions = {}) {
       })
 
       rendererRef.current.addObject(obj, obj.id)
-      useCanvasStore.getState().addObject(obj as any)
+      useCanvasStore.getState().addObject(obj)
 
       return obj
     } catch (error) {
@@ -284,11 +298,11 @@ export function useCanvas(options: UseCanvasOptions = {}) {
   }, [])
 
   /**
-   * Remove an object by ID
+   * Removal & Clear Actions
    */
   const removeObject = useCallback((id: string) => {
     const { objects } = useCanvasStore.getState()
-    const obj = objects.find((o) => o.id === id)
+    const obj = objects.find((o) => (o as CanvasObject).id === id)
 
     if (obj && rendererRef.current) {
       rendererRef.current.removeObject(obj, id)
@@ -296,9 +310,6 @@ export function useCanvas(options: UseCanvasOptions = {}) {
     }
   }, [])
 
-  /**
-   * Clear all objects
-   */
   const clearAll = useCallback(() => {
     if (rendererRef.current) {
       rendererRef.current.clearAll()
@@ -307,54 +318,45 @@ export function useCanvas(options: UseCanvasOptions = {}) {
   }, [])
 
   /**
-   * Zoom in
+   * Zoom & View Transformations
    */
   const zoomIn = useCallback(() => {
-    const currentZoom = zoom
-    const newZoom = Math.min(currentZoom + ZOOM_CONFIG.zoomStep, ZOOM_CONFIG.maxZoom)
+    const newZoom = Math.min(zoom + ZOOM_CONFIG.zoomStep, ZOOM_CONFIG.maxZoom)
     setZoom(newZoom)
     if (canvas) {
       canvas.setZoom(newZoom)
-      canvas.renderAll()
+      canvas.requestRenderAll()
     }
-  }, [zoom, canvas])
+  }, [zoom, canvas, setZoom])
 
-  /**
-   * Zoom out
-   */
   const zoomOut = useCallback(() => {
-    const currentZoom = zoom
-    const newZoom = Math.max(currentZoom - ZOOM_CONFIG.zoomStep, ZOOM_CONFIG.minZoom)
+    const newZoom = Math.max(zoom - ZOOM_CONFIG.zoomStep, ZOOM_CONFIG.minZoom)
     setZoom(newZoom)
     if (canvas) {
       canvas.setZoom(newZoom)
-      canvas.renderAll()
+      canvas.requestRenderAll()
     }
-  }, [zoom, canvas])
+  }, [zoom, canvas, setZoom])
 
-  /**
-   * Reset view to default
-   */
   const resetView = useCallback(() => {
     setZoom(1)
     setPan({ x: 0, y: 0 })
     if (canvas) {
       canvas.setZoom(1)
       canvas.setViewportTransform([1, 0, 0, 1, 0, 0])
-      canvas.renderAll()
+      canvas.requestRenderAll()
     }
-  }, [canvas])
+  }, [canvas, setZoom, setPan])
 
-  /**
-   * Fit objects to view
-   */
   const fitToView = useCallback(() => {
     if (!canvas) return
 
     const objects = canvas.getObjects()
     if (objects.length === 0) return
 
-    const rect = canvas.getObjects().reduce((bounds, obj) => {
+    type RectBounds = { left: number; top: number; width: number; height: number } | null
+
+    const rect = objects.reduce<RectBounds>((bounds, obj) => {
       const objBounds = obj.getBoundingRect()
       if (!bounds) return objBounds
       return {
@@ -363,7 +365,7 @@ export function useCanvas(options: UseCanvasOptions = {}) {
         width: Math.max(bounds.left + bounds.width, objBounds.left + objBounds.width) - Math.min(bounds.left, objBounds.left),
         height: Math.max(bounds.top + bounds.height, objBounds.top + objBounds.height) - Math.min(bounds.top, objBounds.top),
       }
-    }, null as fabric.IRect | null)
+    }, null)
 
     if (rect) {
       const viewportWidth = canvas.getWidth()
@@ -375,27 +377,29 @@ export function useCanvas(options: UseCanvasOptions = {}) {
       const centerX = rect.left + rect.width / 2
       const centerY = rect.top + rect.height / 2
 
-      const vpt = canvas.viewportTransform || [1, 0, 0, 1, 0, 0]
-      vpt[0] = scale
-      vpt[3] = scale
-      vpt[4] = viewportWidth / 2 - centerX * scale
-      vpt[5] = viewportHeight / 2 - centerY * scale
+      const vpt: [number, number, number, number, number, number] = [
+        scale,
+        0,
+        0,
+        scale,
+        viewportWidth / 2 - centerX * scale,
+        viewportHeight / 2 - centerY * scale,
+      ]
 
       canvas.setViewportTransform(vpt)
-      canvas.renderAll()
+      canvas.requestRenderAll()
 
       setZoom(scale)
       setPan({ x: vpt[4], y: vpt[5] })
     }
-  }, [canvas])
+  }, [canvas, setZoom, setPan])
 
-  // Initialize canvas on mount
+  // Canvas Initialization and Lifecycle Cleanup
   useEffect(() => {
     if (!isInitialized && containerRef.current && canvasRef.current) {
       initCanvas()
     }
 
-    // Cleanup on unmount
     return () => {
       if (rendererRef.current) {
         rendererRef.current.dispose()
@@ -408,22 +412,21 @@ export function useCanvas(options: UseCanvasOptions = {}) {
     }
   }, [initCanvas, isInitialized, canvas])
 
-  // Handle window resize
+  // Window Resize Observer
   useEffect(() => {
     const handleResize = () => {
       if (containerRef.current && canvas) {
         const width = containerRef.current.clientWidth
         const height = containerRef.current.clientHeight
-        canvas.setWidth(width)
-        canvas.setHeight(height)
+        canvas.setDimensions({ width, height })
         setViewport({ width, height })
-        canvas.renderAll()
+        canvas.requestRenderAll()
       }
     }
 
     window.addEventListener('resize', handleResize)
     return () => window.removeEventListener('resize', handleResize)
-  }, [canvas])
+  }, [canvas, setViewport])
 
   return {
     canvasRef,

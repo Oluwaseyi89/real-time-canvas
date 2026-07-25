@@ -3,7 +3,7 @@
  * Handles rendering of all canvas objects with performance optimizations
  */
 
-import { fabric } from 'fabric'
+import { Canvas, Object as FabricObject } from 'fabric'
 import { PERFORMANCE_CONFIG } from './fabricConfig'
 
 /**
@@ -11,12 +11,12 @@ import { PERFORMANCE_CONFIG } from './fabricConfig'
  * Optimized for 100+ objects with smooth interactions
  */
 export class CanvasRenderer {
-  private canvas: fabric.Canvas
+  private canvas: Canvas
   private renderInterval: NodeJS.Timeout | null = null
   private isRendering: boolean = false
-  private objectCache: Map<string, fabric.Object> = new Map()
+  private objectCache: Map<string, FabricObject> = new Map()
 
-  constructor(canvas: fabric.Canvas) {
+  constructor(canvas: Canvas) {
     this.canvas = canvas
     this.setupPerformanceOptimizations()
   }
@@ -48,7 +48,7 @@ export class CanvasRenderer {
    * @param object - Fabric.js object to add
    * @param cacheId - Optional cache ID for object
    */
-  public addObject(object: fabric.Object, cacheId?: string): void {
+  public addObject(object: FabricObject, cacheId?: string): void {
     if (cacheId) {
       this.objectCache.set(cacheId, object)
     }
@@ -65,7 +65,7 @@ export class CanvasRenderer {
    * @param object - Fabric.js object to remove
    * @param cacheId - Optional cache ID to clear
    */
-  public removeObject(object: fabric.Object, cacheId?: string): void {
+  public removeObject(object: FabricObject, cacheId?: string): void {
     if (cacheId) {
       this.objectCache.delete(cacheId)
     }
@@ -79,7 +79,7 @@ export class CanvasRenderer {
    * @param cacheId - Cache ID of the object
    * @returns The cached object or undefined
    */
-  public getCachedObject(cacheId: string): fabric.Object | undefined {
+  public getCachedObject(cacheId: string): FabricObject | undefined {
     return this.objectCache.get(cacheId)
   }
 
@@ -87,7 +87,7 @@ export class CanvasRenderer {
    * Batch add multiple objects for better performance
    * @param objects - Array of objects to add
    */
-  public batchAddObjects(objects: fabric.Object[]): void {
+  public batchAddObjects(objects: FabricObject[]): void {
     // Disable rendering during batch operations
     this.canvas.renderOnAddRemove = false
 
@@ -104,7 +104,7 @@ export class CanvasRenderer {
    * Batch remove multiple objects
    * @param objects - Array of objects to remove
    */
-  public batchRemoveObjects(objects: fabric.Object[]): void {
+  public batchRemoveObjects(objects: FabricObject[]): void {
     this.canvas.renderOnAddRemove = false
 
     objects.forEach((obj) => {
@@ -153,7 +153,7 @@ export class CanvasRenderer {
    * Get all objects on the canvas
    * @returns Array of all objects
    */
-  public getAllObjects(): fabric.Object[] {
+  public getAllObjects(): FabricObject[] {
     return this.canvas.getObjects()
   }
 
@@ -162,8 +162,8 @@ export class CanvasRenderer {
    * @param type - Object type (e.g., 'rect', 'circle', 'text', 'image')
    * @returns Array of objects of the specified type
    */
-  public getObjectsByType(type: string): fabric.Object[] {
-    return this.canvas.getObjects().filter((obj) => obj.type === type)
+  public getObjectsByType(type: string): FabricObject[] {
+    return this.canvas.getObjects().filter((obj: FabricObject) => obj.type === type)
   }
 
   /**
@@ -184,6 +184,6 @@ export class CanvasRenderer {
 /**
  * Create a new CanvasRenderer instance
  */
-export function createRenderer(canvas: fabric.Canvas): CanvasRenderer {
+export function createRenderer(canvas: Canvas): CanvasRenderer {
   return new CanvasRenderer(canvas)
 }

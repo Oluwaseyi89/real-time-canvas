@@ -4,13 +4,12 @@
  */
 
 import { create } from 'zustand'
-import { fabric } from 'fabric'
-import { CanvasObject } from '@/lib/canvas/objectFactory'
+import { Canvas, Object as FabricObject } from 'fabric'
 
 interface CanvasState {
   // Core state
-  canvas: fabric.Canvas | null
-  objects: CanvasObject[]
+  canvas: Canvas | null
+  objects: FabricObject[]
   selectedObjects: string[]
   isReady: boolean
 
@@ -25,10 +24,10 @@ interface CanvasState {
   isDragging: boolean
 
   // Actions
-  setCanvas: (canvas: fabric.Canvas) => void
-  addObject: (obj: CanvasObject) => void
+  setCanvas: (canvas: Canvas) => void
+  addObject: (obj: FabricObject) => void
   removeObject: (id: string) => void
-  updateObject: (id: string, props: Partial<CanvasObject>) => void
+  updateObject: (id: string, props: Partial<FabricObject>) => void
   selectObject: (id: string) => void
   deselectObject: (id: string) => void
   clearSelection: () => void
@@ -59,14 +58,14 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   /**
    * Set the canvas instance
    */
-  setCanvas: (canvas: fabric.Canvas) => {
+  setCanvas: (canvas: Canvas) => {
     set({ canvas, isReady: true })
   },
 
   /**
    * Add an object to the canvas
    */
-  addObject: (obj: CanvasObject) => {
+  addObject: (obj: FabricObject) => {
     const { canvas, objects } = get()
     if (canvas) {
       canvas.add(obj)
@@ -80,7 +79,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
    */
   removeObject: (id: string) => {
     const { canvas, objects } = get()
-    const obj = objects.find((o) => o.id === id)
+    const obj = objects.find((o: any) => o.id === id)
 
     if (canvas && obj) {
       canvas.remove(obj)
@@ -88,7 +87,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     }
 
     set({
-      objects: objects.filter((o) => o.id !== id),
+      objects: objects.filter((o: any) => (o as any).id !== id),
       selectedObjects: get().selectedObjects.filter((sid) => sid !== id),
     })
   },
@@ -96,18 +95,19 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   /**
    * Update an object's properties
    */
-  updateObject: (id: string, props: Partial<CanvasObject>) => {
+  updateObject: (id: string, props: Partial<FabricObject>) => {
     const { canvas, objects } = get()
-    const obj = objects.find((o) => o.id === id)
+    const obj = objects.find((o: any) => (o as any).id === id)
 
     if (canvas && obj) {
+      // Use fabric's set method
       obj.set(props as any)
       canvas.renderAll()
     }
 
     set({
-      objects: objects.map((o) =>
-        o.id === id ? { ...o, ...props } : o
+      objects: objects.map((o: any) =>
+        (o as any).id === id ? { ...o, ...props } : o
       ),
     })
   },
@@ -118,7 +118,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   selectObject: (id: string) => {
     const { canvas, selectedObjects } = get()
     if (canvas) {
-      const obj = canvas.getObjects().find((o: any) => o.id === id)
+      const obj = canvas.getObjects().find((o: any) => (o as any).id === id)
       if (obj) {
         canvas.setActiveObject(obj)
         canvas.renderAll()
