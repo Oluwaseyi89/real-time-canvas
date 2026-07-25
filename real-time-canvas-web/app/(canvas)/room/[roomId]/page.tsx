@@ -26,10 +26,12 @@ export default function CanvasRoomPage() {
   const [isReady, setIsReady] = useState(false)
   const [isRoomInfoOpen, setIsRoomInfoOpen] = useState(false)
   const [userId] = useState(() => `user-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`)
-  const canvasRef = useRef<HTMLCanvasElement>(null)
+  
+  // Create a ref for the canvas element
+  const canvasElementRef = useRef<HTMLCanvasElement | null>(null)
 
   const {
-    canvasRef: canvasRefFromHook,
+    canvasRef,
     containerRef,
     zoom,
     addText,
@@ -96,11 +98,12 @@ export default function CanvasRoomPage() {
 
   // Handle mouse move for cursor broadcasting
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!canvasRef.current || !isConnected) return
+    const canvas = canvasElementRef.current
+    if (!canvas || !isConnected) return
     
-    const rect = canvasRef.current.getBoundingClientRect()
-    const x = ((e.clientX - rect.left) / rect.width) * canvasRef.current.width
-    const y = ((e.clientY - rect.top) / rect.height) * canvasRef.current.height
+    const rect = canvas.getBoundingClientRect()
+    const x = ((e.clientX - rect.left) / rect.width) * canvas.width
+    const y = ((e.clientY - rect.top) / rect.height) * canvas.height
     
     lastCursorPos.current = { x, y }
     broadcastCursor({
@@ -108,7 +111,7 @@ export default function CanvasRoomPage() {
       y,
       timestamp: Date.now(),
     })
-  }, [canvasRef, isConnected, broadcastCursor])
+  }, [isConnected, broadcastCursor])
 
   // Load username from session storage
   useEffect(() => {
@@ -139,9 +142,9 @@ export default function CanvasRoomPage() {
 
   // Set up mouse event listeners
   useEffect(() => {
-    if (!canvasRef.current) return
+    const canvas = canvasElementRef.current
+    if (!canvas) return
     
-    const canvas = canvasRef.current
     canvas.addEventListener('mousemove', handleMouseMove)
     canvas.addEventListener('mouseleave', () => {
       lastCursorPos.current = null
@@ -150,7 +153,7 @@ export default function CanvasRoomPage() {
     return () => {
       canvas.removeEventListener('mousemove', handleMouseMove)
     }
-  }, [canvasRef, handleMouseMove])
+  }, [handleMouseMove])
 
   // Leave room on unmount
   useEffect(() => {
@@ -180,12 +183,12 @@ export default function CanvasRoomPage() {
       >
         <canvas
           ref={(el) => {
-            canvasRef.current = el
-            // Forward ref to hook
-            if (typeof canvasRefFromHook === 'function') {
-              canvasRefFromHook(el)
-            } else if (canvasRefFromHook) {
-              ;(canvasRefFromHook as React.MutableRefObject<HTMLCanvasElement | null>).current = el
+            // Store in local ref for mouse events
+            canvasElementRef.current = el
+            // Forward to the hook's ref
+            if (canvasRef) {
+              // canvasRef is a RefObject, assign its current property
+              ;(canvasRef as React.MutableRefObject<HTMLCanvasElement | null>).current = el
             }
           }}
           className="w-full h-full"
@@ -194,7 +197,7 @@ export default function CanvasRoomPage() {
       </div>
 
       {/* Cursor tracker for remote users */}
-      <CursorTracker canvasRef={canvasRef} />
+      <CursorTracker canvasRef={canvasElementRef} />
 
       {/* Toolbar - positioned top-left */}
       <div className="absolute top-4 left-4 z-20">
