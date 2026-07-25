@@ -34,9 +34,8 @@ export function Minimap({ className = '' }: MinimapProps) {
     )
   }
 
-  const handleResize = (direction: string) => {
-    // Resize logic would go here
-    // For simplicity, we'll use preset sizes
+  const handleResize = () => {
+    // Cycle through preset sizes
     const sizes = [
       { width: 160, height: 120 },
       { width: 200, height: 150 },
