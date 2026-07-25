@@ -23,6 +23,10 @@ interface CanvasState {
   isDrawing: boolean
   isDragging: boolean
 
+  // Physics state
+  physicsEnabled: boolean
+  physicsGravity: { x: number; y: number }
+
   // Actions
   setCanvas: (canvas: Canvas) => void
   addObject: (obj: FabricObject) => void
@@ -40,6 +44,8 @@ interface CanvasState {
   clearAllObjects: () => void
   setReady: (ready: boolean) => void
   reset: () => void
+  setPhysicsEnabled: (enabled: boolean) => void
+  setPhysicsGravity: (gravity: { x: number; y: number }) => void
 }
 
 export const useCanvasStore = create<CanvasState>((set, get) => ({
@@ -54,6 +60,8 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   activeTool: null,
   isDrawing: false,
   isDragging: false,
+  physicsEnabled: true,
+  physicsGravity: { x: 0, y: 1 },
 
   /**
    * Set the canvas instance
@@ -100,7 +108,6 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
     const obj = objects.find((o: any) => (o as any).id === id)
 
     if (canvas && obj) {
-      // Use fabric's set method
       obj.set(props as any)
       canvas.renderAll()
     }
@@ -250,5 +257,19 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
       isDrawing: false,
       isDragging: false,
     })
+  },
+
+  /**
+   * Enable/disable physics
+   */
+  setPhysicsEnabled: (enabled: boolean) => {
+    set({ physicsEnabled: enabled })
+  },
+
+  /**
+   * Set physics gravity
+   */
+  setPhysicsGravity: (gravity: { x: number; y: number }) => {
+    set({ physicsGravity: gravity })
   },
 }))
