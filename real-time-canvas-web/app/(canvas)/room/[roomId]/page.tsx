@@ -107,7 +107,7 @@ export default function CanvasRoomPage() {
     // Handle user presence
     const unsubscribePresence = subscribe('user:presence', (message) => {
       const presence = message.payload
-      useWebSocketStore.getState().addUser(presence)
+      useWebSocketStore.getState().addUser(presence as any)
     })
 
     return () => {

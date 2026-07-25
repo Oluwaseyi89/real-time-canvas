@@ -8,7 +8,7 @@ import { useEffect, useRef } from 'react'
 import { useWebSocketStore } from '@/store/websocketStore'
 
 interface CursorTrackerProps {
-  canvasRef: React.RefObject<HTMLCanvasElement>
+  canvasRef: React.RefObject<HTMLCanvasElement | null>
 }
 
 export function CursorTracker({ canvasRef }: CursorTrackerProps) {
@@ -16,9 +16,9 @@ export function CursorTracker({ canvasRef }: CursorTrackerProps) {
   const cursorRefs = useRef<Map<string, HTMLDivElement>>(new Map())
 
   useEffect(() => {
-    if (!canvasRef.current) return
-
     const canvas = canvasRef.current
+    if (!canvas) return
+
     const container = canvas.parentElement
     if (!container) return
 

@@ -34,6 +34,103 @@ interface WebSocketConfig {
 }
 
 /**
+ * Type guard to check if payload is UserPresence
+ */
+function isUserPresence(payload: unknown): payload is UserPresence {
+  return (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'userId' in payload &&
+    'username' in payload
+  )
+}
+
+/**
+ * Type guard to check if payload is CursorPosition
+ */
+function isCursorPosition(payload: unknown): payload is CursorPosition {
+  return (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'userId' in payload &&
+    'x' in payload &&
+    'y' in payload
+  )
+}
+
+/**
+ * Type guard to check if payload is ObjectCreatePayload
+ */
+function isObjectCreatePayload(payload: unknown): payload is ObjectCreatePayload {
+  return (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'objectId' in payload &&
+    'type' in payload
+  )
+}
+
+/**
+ * Type guard to check if payload is ObjectUpdatePayload
+ */
+function isObjectUpdatePayload(payload: unknown): payload is ObjectUpdatePayload {
+  return (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'objectId' in payload &&
+    'updates' in payload
+  )
+}
+
+/**
+ * Type guard to check if payload is ObjectDeletePayload
+ */
+function isObjectDeletePayload(payload: unknown): payload is ObjectDeletePayload {
+  return (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'objectId' in payload
+  )
+}
+
+/**
+ * Type guard to check if payload is CanvasSyncPayload
+ */
+function isCanvasSyncPayload(payload: unknown): payload is CanvasSyncPayload {
+  return (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'objects' in payload &&
+    'version' in payload
+  )
+}
+
+/**
+ * Type guard to check if payload is PhysicsPayload
+ */
+function isPhysicsPayload(payload: unknown): payload is PhysicsPayload {
+  return (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'objectId' in payload &&
+    'type' in payload
+  )
+}
+
+/**
+ * Type guard for room joined payload
+ */
+function isRoomJoinedPayload(payload: unknown): payload is { roomId: string; users: UserPresence[] } {
+  return (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'roomId' in payload &&
+    'users' in payload &&
+    Array.isArray((payload as any).users)
+  )
+}
+
+/**
  * WebSocket client class with full type safety
  */
 export class WebSocketClient {
@@ -304,38 +401,54 @@ export class WebSocketClient {
   }
 
   /**
-   * Dispatch message to appropriate handler
+   * Dispatch message to appropriate handler with type guards
    */
   private dispatchMessage(message: WebSocketMessage): void {
     const { type, payload } = message
 
     switch (type) {
       case 'room:joined':
-        this.handlers.onRoomJoined?.(payload.roomId, payload.users)
+        if (isRoomJoinedPayload(payload)) {
+          this.handlers.onRoomJoined?.(payload.roomId, payload.users)
+        }
         break
       case 'user:presence':
-        this.handlers.onUserPresence?.(payload)
+        if (isUserPresence(payload)) {
+          this.handlers.onUserPresence?.(payload)
+        }
         break
       case 'user:cursor':
-        this.handlers.onCursorMove?.(payload)
+        if (isCursorPosition(payload)) {
+          this.handlers.onCursorMove?.(payload)
+        }
         break
       case 'object:create':
-        this.handlers.onObjectCreate?.(payload)
+        if (isObjectCreatePayload(payload)) {
+          this.handlers.onObjectCreate?.(payload)
+        }
         break
       case 'object:update':
-        this.handlers.onObjectUpdate?.(payload)
+        if (isObjectUpdatePayload(payload)) {
+          this.handlers.onObjectUpdate?.(payload)
+        }
         break
       case 'object:delete':
-        this.handlers.onObjectDelete?.(payload)
+        if (isObjectDeletePayload(payload)) {
+          this.handlers.onObjectDelete?.(payload)
+        }
         break
       case 'canvas:sync':
-        this.handlers.onCanvasSync?.(payload)
+        if (isCanvasSyncPayload(payload)) {
+          this.handlers.onCanvasSync?.(payload)
+        }
         break
       case 'physics:throw':
       case 'physics:collision':
       case 'physics:attract':
       case 'physics:repel':
-        this.handlers.onPhysicsEvent?.({ ...payload, type })
+        if (isPhysicsPayload(payload)) {
+          this.handlers.onPhysicsEvent?.(payload)
+        }
         break
       case 'connection:error':
       case 'room:error':
