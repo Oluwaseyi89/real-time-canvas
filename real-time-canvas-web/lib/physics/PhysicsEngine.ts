@@ -13,7 +13,6 @@ import {
   Runner,
   Vector,
   Pair,
-  Collision,
 } from 'matter-js'
 import type {
   PhysicsBodyConfig,
@@ -21,9 +20,8 @@ import type {
   ThrowConfig,
   ForceConfig,
   CollisionEvent,
-  PhysicsState,
 } from '@/types/physics'
-import { fabric } from 'fabric'
+import { Canvas, Object as FabricObject } from 'fabric'
 
 /**
  * Physics engine class with full Matter.js integration
@@ -32,11 +30,11 @@ export class PhysicsEngine {
   private engine: Engine
   private runner: Runner | null = null
   private bodies: Map<string, Body> = new Map()
-  private fabricObjects: Map<string, fabric.Object> = new Map()
+  private fabricObjects: Map<string, FabricObject> = new Map()
   private isRunning: boolean = false
   private isPaused: boolean = false
   private animationFrame: number | null = null
-  private canvas: fabric.Canvas | null = null
+  private canvas: Canvas | null = null
   
   // Event callbacks
   private collisionCallbacks: Array<(event: CollisionEvent) => void> = []
@@ -63,7 +61,7 @@ export class PhysicsEngine {
   /**
    * Set the canvas for rendering
    */
-  setCanvas(canvas: fabric.Canvas): void {
+  setCanvas(canvas: Canvas): void {
     this.canvas = canvas
   }
 
@@ -150,10 +148,6 @@ export class PhysicsEngine {
             friction: config.friction || 0.1,
             density: config.density || 0.001,
             label: config.label || config.type,
-            plugin: {
-              canvasObjectId: config.id,
-              metadata: config.plugin?.metadata || {},
-            },
           }
         )
         break
@@ -171,10 +165,6 @@ export class PhysicsEngine {
             friction: config.friction || 0.1,
             density: config.density || 0.001,
             label: config.label || config.type,
-            plugin: {
-              canvasObjectId: config.id,
-              metadata: config.plugin?.metadata || {},
-            },
           }
         )
         break
@@ -183,10 +173,14 @@ export class PhysicsEngine {
         if (!config.vertices) {
           throw new Error('Vertices required for polygon body')
         }
+        // Convert vertices to proper format for Matter.js
+        // Bodies.fromVertices expects Vector[][] (array of arrays for compound shapes)
+        // For a single polygon, wrap in an array
+        const vertices = config.vertices.map(v => Vector.create(v.x, v.y))
         body = Bodies.fromVertices(
           config.x,
           config.y,
-          config.vertices,
+          [vertices], // Wrap in array to match Vector[][] type
           {
             angle: config.angle || 0,
             isStatic: config.isStatic || false,
@@ -195,10 +189,6 @@ export class PhysicsEngine {
             friction: config.friction || 0.1,
             density: config.density || 0.001,
             label: config.label || config.type,
-            plugin: {
-              canvasObjectId: config.id,
-              metadata: config.plugin?.metadata || {},
-            },
           }
         )
         break
@@ -218,16 +208,14 @@ export class PhysicsEngine {
             friction: config.friction || 0.1,
             density: config.density || 0.001,
             label: config.label || config.type,
-            plugin: {
-              canvasObjectId: config.id,
-              metadata: config.plugin?.metadata || {},
-            },
           }
         )
     }
 
-    // Store body reference
-    body.id = config.id
+    // Store body reference with custom id in plugin
+    if (body && body.plugin) {
+      body.plugin.id = config.id
+    }
     this.bodies.set(config.id, body)
     World.addBody(this.engine.world, body)
     
@@ -266,7 +254,7 @@ export class PhysicsEngine {
   /**
    * Link a Fabric object to a physics body
    */
-  linkFabricObject(bodyId: string, fabricObj: fabric.Object): void {
+  linkFabricObject(bodyId: string, fabricObj: FabricObject): void {
     this.fabricObjects.set(bodyId, fabricObj)
     const body = this.bodies.get(bodyId)
     if (body && fabricObj) {
@@ -471,9 +459,9 @@ export class PhysicsEngine {
             bodyA: pair.bodyA,
             bodyB: pair.bodyB,
             collision: {
-              normals: pair.collision.normals,
-              supports: pair.collision.supports,
-              depth: pair.collision.depth,
+              normals: pair.collision.normal ? [pair.collision.normal] : [],
+              supports: pair.collision.supports || [],
+              depth: pair.collision.depth || 0,
             },
           },
         })
@@ -498,12 +486,14 @@ export class PhysicsEngine {
   /**
    * Sync a single Fabric object with its physics body
    */
-  private syncFabricObject(body: Body, fabricObj: fabric.Object): void {
+  private syncFabricObject(body: Body, fabricObj: FabricObject): void {
     if (!fabricObj || !this.canvas) return
 
     // Update position
-    fabricObj.left = body.position.x - fabricObj.width / 2 || 0
-    fabricObj.top = body.position.y - fabricObj.height / 2 || 0
+    const objWidth = fabricObj.width || 50
+    const objHeight = fabricObj.height || 50
+    fabricObj.left = body.position.x - objWidth / 2
+    fabricObj.top = body.position.y - objHeight / 2
 
     // Update rotation
     fabricObj.angle = (body.angle * 180) / Math.PI
@@ -512,8 +502,10 @@ export class PhysicsEngine {
     if (body.bounds) {
       const width = body.bounds.max.x - body.bounds.min.x
       const height = body.bounds.max.y - body.bounds.min.y
-      fabricObj.width = width
-      fabricObj.height = height
+      if (width > 0 && height > 0) {
+        fabricObj.width = width
+        fabricObj.height = height
+      }
     }
 
     fabricObj.setCoords()

@@ -17,6 +17,7 @@ import { TypingIndicator } from '@/components/collaboration/TypingIndicator'
 import { RoomInvite } from '@/components/room/RoomInvite'
 import { RoomInfo } from '@/components/room/RoomInfo'
 import { useCanvasStore } from '@/store/canvasStore'
+import { Object as FabricObject } from 'fabric'
 
 export default function CanvasRoomPage() {
   const params = useParams()
@@ -60,7 +61,9 @@ export default function CanvasRoomPage() {
         })
 
         // Add physics body for the object
-        addPhysicsBodyForObject(obj)
+        if (physicsEngine) {
+          addPhysicsBodyForObject(obj)
+        }
       }
     },
   })
@@ -128,15 +131,15 @@ export default function CanvasRoomPage() {
   /**
    * Add physics body for a canvas object
    */
-  const addPhysicsBodyForObject = useCallback((obj: fabric.Object) => {
+  const addPhysicsBodyForObject = useCallback((obj: FabricObject) => {
     const custom = obj as any
     if (!custom.id || !physicsEngine) return
 
     const bodyConfig = {
       id: custom.id,
       type: 'rectangle' as const,
-      x: obj.left || 0 + (obj.width || 50) / 2,
-      y: obj.top || 0 + (obj.height || 50) / 2,
+      x: (obj.left || 0) + (obj.width || 50) / 2,
+      y: (obj.top || 0) + (obj.height || 50) / 2,
       width: obj.width || 50,
       height: obj.height || 50,
       restitution: 0.5,

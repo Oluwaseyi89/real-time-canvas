@@ -6,7 +6,7 @@
 import { useEffect, useRef, useState, useCallback } from 'react'
 import { PhysicsEngine, createPhysicsEngine } from '@/lib/physics/PhysicsEngine'
 import type { PhysicsBodyConfig, ThrowConfig, ForceConfig } from '@/types/physics'
-import { fabric } from 'fabric'
+import { Object as FabricObject } from 'fabric'
 
 interface UsePhysicsOptions {
   enabled?: boolean
@@ -31,7 +31,7 @@ export function usePhysics(options: UsePhysicsOptions = {}) {
   /**
    * Initialize physics engine
    */
-  const initEngine = useCallback((canvas?: fabric.Canvas) => {
+  const initEngine = useCallback((canvas?: any) => {
     if (engineRef.current) {
       engineRef.current.dispose()
     }
@@ -104,7 +104,7 @@ export function usePhysics(options: UsePhysicsOptions = {}) {
   /**
    * Add a physics body for a canvas object
    */
-  const addBody = useCallback((config: PhysicsBodyConfig, fabricObj?: fabric.Object) => {
+  const addBody = useCallback((config: PhysicsBodyConfig, fabricObj?: FabricObject) => {
     if (!engineRef.current) return null
 
     const body = engineRef.current.addBody(config)
