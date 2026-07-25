@@ -34,6 +34,27 @@ export default function CanvasRoomPage() {
   
   const canvasElementRef = useRef<HTMLCanvasElement | null>(null)
 
+  // Offline sync setup - must be declared before useCanvas
+  const {
+    queueOperation,
+    processQueue,
+    status: offlineStatus,
+    isReady: offlineReady,
+  } = useOfflineSync({
+    roomId,
+    userId,
+    enabled: true,
+    onSyncStart: () => {
+      console.log('[OfflineSync] Sync started')
+    },
+    onSyncComplete: () => {
+      console.log('[OfflineSync] Sync completed')
+    },
+    onSyncError: (error) => {
+      console.error('[OfflineSync] Sync error:', error)
+    },
+  })
+
   const {
     canvasRef,
     containerRef,
@@ -53,19 +74,17 @@ export default function CanvasRoomPage() {
       const custom = obj as any
       if (custom.id && custom.type) {
         // Queue offline operation
-        if (offlineSync) {
-          try {
-            await queueOperation('object:create', {
-              objectId: custom.id,
-              type: custom.type,
-              data: custom.toObject ? custom.toObject() : {},
-              position: { x: custom.left || 0, y: custom.top || 0 },
-              userId,
-              timestamp: Date.now(),
-            })
-          } catch (error) {
-            console.error('[CanvasRoom] Failed to queue operation:', error)
-          }
+        try {
+          await queueOperation('object:create', {
+            objectId: custom.id,
+            type: custom.type,
+            data: custom.toObject ? custom.toObject() : {},
+            position: { x: custom.left || 0, y: custom.top || 0 },
+            userId,
+            timestamp: Date.now(),
+          })
+        } catch (error) {
+          console.error('[CanvasRoom] Failed to queue operation:', error)
         }
 
         syncObject({
@@ -81,27 +100,6 @@ export default function CanvasRoomPage() {
           addPhysicsBodyForObject(obj)
         }
       }
-    },
-  })
-
-  // Offline sync setup
-  const {
-    queueOperation,
-    processQueue,
-    status: offlineStatus,
-    isReady: offlineReady,
-  } = useOfflineSync({
-    roomId,
-    userId,
-    enabled: true,
-    onSyncStart: () => {
-      console.log('[OfflineSync] Sync started')
-    },
-    onSyncComplete: () => {
-      console.log('[OfflineSync] Sync completed')
-    },
-    onSyncError: (error) => {
-      console.error('[OfflineSync] Sync error:', error)
     },
   })
 

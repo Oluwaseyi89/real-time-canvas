@@ -5,7 +5,7 @@
 
 import * as Y from 'yjs'
 import { OfflineDB } from './indexDB'
-import type { OfflineOperation, OfflineSyncStatus } from '@/types/offline'
+import type { OfflineOperation, OfflineSyncStatus, OfflineOperationType } from '@/types/offline'
 import type { WebSocketMessage } from '@/types/websocket'
 
 /**
@@ -150,10 +150,15 @@ export class SyncEngine {
    * Queue an offline operation
    */
   async queueOperation(
-    type: OfflineOperation['type'],
+    type: OfflineOperationType,
     payload: Record<string, unknown>
   ): Promise<OfflineOperation> {
-    const operation = await this.db.saveOperation({ type, payload })
+    const operation = await this.db.saveOperation({ 
+      type, 
+      payload,
+      maxRetries: 3,
+      status: 'pending' 
+    })
     this.syncQueue.push(operation)
     
     // If online, process immediately

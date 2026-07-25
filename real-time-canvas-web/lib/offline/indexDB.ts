@@ -61,14 +61,13 @@ export class OfflineDB {
   /**
    * Save an operation to the offline queue
    */
-  async saveOperation(operation: Omit<OfflineOperation, 'id' | 'timestamp' | 'retryCount' | 'status'>): Promise<OfflineOperation> {
+  async saveOperation(operation: Omit<OfflineOperation, 'id' | 'timestamp' | 'retryCount'>): Promise<OfflineOperation> {
     const id = `op_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`
     const newOperation: OfflineOperation = {
       ...operation,
       id,
       timestamp: Date.now(),
       retryCount: 0,
-      maxRetries: 3,
       status: 'pending',
     }
 
