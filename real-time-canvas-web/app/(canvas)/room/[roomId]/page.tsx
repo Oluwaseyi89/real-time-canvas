@@ -1,5 +1,12 @@
 'use client'
 
+/**
+ * World-Class Canvas Room Page
+ * High-performance collaborative digital canvas workspace.
+ * Features real-time multi-user synchronization, physics engine, time travel replay,
+ * offline operations queue, and glassmorphic spatial control interface.
+ */
+
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useCanvas } from '@/hooks/useCanvas'
@@ -22,7 +29,6 @@ import { UserPresence } from '@/components/collaboration/UserPresence'
 import { TypingIndicator } from '@/components/collaboration/TypingIndicator'
 import { RoomInvite } from '@/components/room/RoomInvite'
 import { RoomInfo } from '@/components/room/RoomInfo'
-import { useCanvasStore } from '@/store/canvasStore'
 import { Object as FabricObject } from 'fabric'
 
 export default function CanvasRoomPage() {
@@ -31,14 +37,19 @@ export default function CanvasRoomPage() {
   const roomId = params.roomId as string
   const { username } = useAuth()
   const { currentRoom, joinRoom, leaveRoom, isInRoom } = useRoom()
+
+  // Control State
   const [isReady, setIsReady] = useState(false)
   const [isRoomInfoOpen, setIsRoomInfoOpen] = useState(false)
+  const [isPhysicsOpen, setIsPhysicsOpen] = useState(false)
+  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
   const [userId] = useState(() => `user-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`)
-  
-  const canvasElementRef = useRef<HTMLCanvasElement | null>(null)
 
-  // Offline sync setup
+  const canvasElementRef = useRef<HTMLCanvasElement | null>(null)
+  const lastCursorPos = useRef<{ x: number; y: number } | null>(null)
+
+  // Offline Sync setup
   const {
     queueOperation,
     processQueue,
@@ -50,15 +61,18 @@ export default function CanvasRoomPage() {
     enabled: true,
   })
 
+  // Time travel setup
+  const { recordEvent, isRecording, isReplaying } = useTimeTravel({
+    enabled: true,
+    autoRecord: true,
+    maxEvents: 10000,
+  })
+
+  // Canvas setup
   const {
     canvasRef,
     containerRef,
     zoom,
-    addText,
-    addRectangle,
-    addCircle,
-    addStickyNote,
-    addImage,
     zoomIn,
     zoomOut,
     resetView,
@@ -94,7 +108,7 @@ export default function CanvasRoomPage() {
           type: custom.type,
           data: custom.toObject ? custom.toObject() : {},
           version: 1,
-          userId: userId,
+          userId,
           timestamp: Date.now(),
         })
 
@@ -105,29 +119,17 @@ export default function CanvasRoomPage() {
     },
   })
 
-  // Time travel setup
-  const { recordEvent, isRecording, isReplaying } = useTimeTravel({
-    enabled: true,
-    autoRecord: true,
-    maxEvents: 10000,
-  })
-
-  // Physics setup
-  const { 
+  // Physics Engine Setup
+  const {
     engine: physicsEngine,
     isRunning: isPhysicsRunning,
     addBody,
-    removeBody,
-    throwBody,
-    attractBody,
-    repelBody,
     initEngine,
   } = usePhysics({
     enabled: true,
     gravity: { x: 0, y: 1 },
     autoStart: true,
     onCollision: (bodyA, bodyB) => {
-      console.log('[Physics] Collision:', bodyA.id, bodyB.id)
       send('physics:collision', {
         objectId: bodyA.id,
         targetId: bodyB.id,
@@ -136,90 +138,89 @@ export default function CanvasRoomPage() {
     },
   })
 
-  // WebSocket setup
+  // WebSocket Connection Setup
   const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080'
-  const { isConnected, send, subscribe, connect, disconnect } = useWebSocket({
+  const { isConnected, send, connect, disconnect } = useWebSocket({
     url: wsUrl,
     roomId,
     userId,
     username: username || 'Guest',
     autoConnect: false,
     onConnect: () => {
-      console.log('[CanvasRoom] WebSocket connected')
       if (offlineReady) {
         processQueue()
       }
     },
     onDisconnect: () => {
-      console.log('[CanvasRoom] WebSocket disconnected')
+      console.log('[CanvasRoom] Disconnected from session engine.')
     },
     onError: (error) => {
-      console.error('[CanvasRoom] WebSocket error:', error)
+      console.error('[CanvasRoom] WebSocket network alert:', error)
     },
   })
 
-  // Collaboration setup
-  const { 
-    broadcastCursor, 
-    broadcastTyping,
-    syncObject,
-    users 
-  } = useCollaboration({
+  // Real-time Collaboration Engine
+  const { broadcastCursor, syncObject } = useCollaboration({
     roomId,
     userId,
     username: username || 'Guest',
     enabled: isConnected,
   })
 
-  // Minimap is auto-initialized via hook
+  // Minimap Initialization
   useMinimap()
 
-  const lastCursorPos = useRef<{ x: number; y: number } | null>(null)
+  // Physics Body Generator
+  const addPhysicsBodyForObject = useCallback(
+    (obj: FabricObject) => {
+      const custom = obj as any
+      if (!custom.id || !physicsEngine) return
 
-  const addPhysicsBodyForObject = useCallback((obj: FabricObject) => {
-    const custom = obj as any
-    if (!custom.id || !physicsEngine) return
-
-    const bodyConfig = {
-      id: custom.id,
-      type: 'rectangle' as const,
-      x: (obj.left || 0) + (obj.width || 50) / 2,
-      y: (obj.top || 0) + (obj.height || 50) / 2,
-      width: obj.width || 50,
-      height: obj.height || 50,
-      restitution: 0.5,
-      friction: 0.1,
-      density: 0.001,
-      plugin: {
-        canvasObjectId: custom.id,
-        metadata: {
-          type: custom.type,
-          createdAt: new Date(),
+      const bodyConfig = {
+        id: custom.id,
+        type: 'rectangle' as const,
+        x: (obj.left || 0) + (obj.width || 50) / 2,
+        y: (obj.top || 0) + (obj.height || 50) / 2,
+        width: obj.width || 50,
+        height: obj.height || 50,
+        restitution: 0.5,
+        friction: 0.1,
+        density: 0.001,
+        plugin: {
+          canvasObjectId: custom.id,
+          metadata: {
+            type: custom.type,
+            createdAt: new Date(),
+          },
         },
-      },
-    }
+      }
 
-    const body = addBody(bodyConfig, obj)
-    return body
-  }, [physicsEngine, addBody])
+      return addBody(bodyConfig, obj)
+    },
+    [physicsEngine, addBody]
+  )
 
-  const handleMouseMove = useCallback((e: MouseEvent) => {
-    const canvas = canvasElementRef.current
-    if (!canvas || !isConnected) return
-    
-    const rect = canvas.getBoundingClientRect()
-    const x = ((e.clientX - rect.left) / rect.width) * canvas.width
-    const y = ((e.clientY - rect.top) / rect.height) * canvas.height
-    
-    lastCursorPos.current = { x, y }
-    broadcastCursor({
-      x,
-      y,
-      timestamp: Date.now(),
-    })
-  }, [isConnected, broadcastCursor])
+  // Mouse Movement Cursor Tracking
+  const handleMouseMove = useCallback(
+    (e: MouseEvent) => {
+      const canvas = canvasElementRef.current
+      if (!canvas || !isConnected) return
 
-  // Load username from session storage
+      const rect = canvas.getBoundingClientRect()
+      const x = ((e.clientX - rect.left) / rect.width) * canvas.width
+      const y = ((e.clientY - rect.top) / rect.height) * canvas.height
+
+      lastCursorPos.current = { x, y }
+      broadcastCursor({
+        x,
+        y,
+        timestamp: Date.now(),
+      })
+    },
+    [isConnected, broadcastCursor]
+  )
+
+  // Validate Session & Username
   useEffect(() => {
     const storedUsername = sessionStorage.getItem('username')
     if (storedUsername) {
@@ -229,14 +230,14 @@ export default function CanvasRoomPage() {
     }
   }, [router])
 
-  // Join room when ready
+  // Join Room
   useEffect(() => {
     if (isReady && username && !isInRoom) {
       joinRoom(roomId)
     }
   }, [isReady, username, roomId, joinRoom, isInRoom])
 
-  // Connect WebSocket when in room
+  // Manage WebSocket Connection
   useEffect(() => {
     if (isReady && username && isInRoom) {
       connect()
@@ -246,22 +247,22 @@ export default function CanvasRoomPage() {
     }
   }, [isReady, username, isInRoom, connect, disconnect])
 
-  // Set up mouse event listeners
+  // Attach Canvas Mouse Listeners
   useEffect(() => {
     const canvas = canvasElementRef.current
     if (!canvas) return
-    
+
     canvas.addEventListener('mousemove', handleMouseMove)
     canvas.addEventListener('mouseleave', () => {
       lastCursorPos.current = null
     })
-    
+
     return () => {
       canvas.removeEventListener('mousemove', handleMouseMove)
     }
   }, [handleMouseMove])
 
-  // Initialize physics engine when canvas is ready
+  // Bind Physics Engine to Canvas
   useEffect(() => {
     if (isInitialized && canvasRef.current) {
       const canvas = (canvasRef as any).current
@@ -271,31 +272,38 @@ export default function CanvasRoomPage() {
     }
   }, [isInitialized, canvasRef, initEngine])
 
-  // Leave room on unmount
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
       leaveRoom()
     }
   }, [leaveRoom])
 
+  // Loading State
   if (!isReady) {
     return (
-      <div className="flex items-center justify-center h-screen bg-canvas-bg">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-8 w-8 border-4 border-blue-500 border-t-transparent"></div>
-          <p className="mt-4 text-gray-600">Loading canvas...</p>
+      <div className="flex flex-col items-center justify-center h-screen w-screen bg-slate-950 text-slate-100 select-none">
+        <div className="relative flex items-center justify-center mb-6">
+          <div className="w-16 h-16 rounded-full border-2 border-indigo-500/20 border-t-indigo-500 animate-spin" />
+          <span className="absolute text-xl animate-pulse">✨</span>
         </div>
+        <h2 className="text-sm font-semibold tracking-widest text-slate-300 uppercase font-mono">
+          Connecting to Workspace
+        </h2>
+        <p className="text-xs text-slate-500 mt-2 font-mono">Initializing canvas, physics engine & sync relay...</p>
       </div>
     )
   }
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-canvas-bg">
-      {/* Canvas container */}
+    <div className="relative w-screen h-screen overflow-hidden bg-slate-950 font-sans select-none">
+      {/* Dynamic Background Mesh Grid */}
+      <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] opacity-40 pointer-events-none z-0" />
+
+      {/* Main Canvas Workspace Container */}
       <div
         ref={containerRef}
-        className="w-full h-full relative"
-        style={{ touchAction: 'none' }}
+        className="w-full h-full relative z-0 touch-none cursor-crosshair"
       >
         <canvas
           ref={(el) => {
@@ -304,71 +312,163 @@ export default function CanvasRoomPage() {
               ;(canvasRef as React.MutableRefObject<HTMLCanvasElement | null>).current = el
             }
           }}
-          className="w-full h-full"
+          className="w-full h-full block"
           style={{ touchAction: 'none' }}
         />
       </div>
 
-      {/* Cursor tracker for remote users */}
+      {/* Real-time Remote Cursor Layer */}
       <CursorTracker canvasRef={canvasElementRef} />
 
-      {/* Toolbar - positioned top-left */}
-      <div className="absolute top-4 left-4 z-20">
-        <Toolbar />
+      {/* TOP FLOATING UTILITY HEADER */}
+      <div className="absolute top-4 inset-x-4 z-20 flex items-center justify-between pointer-events-none">
+        {/* Left Section: Primary Tool Palette */}
+        <div className="pointer-events-auto shadow-2xl backdrop-blur-2xl rounded-2xl bg-slate-950/80 border border-slate-800/80 p-1">
+          <Toolbar />
+        </div>
+
+        {/* Center Section: Collaborator Presence Badge */}
+        <div className="pointer-events-auto hidden md:flex items-center gap-2 bg-slate-950/80 backdrop-blur-2xl border border-slate-800/80 px-3.5 py-1.5 rounded-2xl shadow-2xl">
+          <UserPresence />
+        </div>
+
+        {/* Right Section: Room Actions & Controls */}
+        <div className="pointer-events-auto flex items-center gap-2">
+          {/* Diagnostics HUD Toggle */}
+          <button
+            onClick={() => setIsDiagnosticsOpen(!isDiagnosticsOpen)}
+            className={`px-3 py-2 rounded-xl text-xs font-mono font-medium border backdrop-blur-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-lg ${
+              isDiagnosticsOpen
+                ? 'bg-indigo-950/80 text-indigo-300 border-indigo-500/60'
+                : 'bg-slate-950/80 text-slate-300 border-slate-800/80 hover:border-slate-700 hover:bg-slate-900'
+            }`}
+            title="Toggle Live Telemetry & Status"
+          >
+            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
+            <span className="hidden sm:inline">Telemetry</span>
+          </button>
+
+          {/* Physics Drawer Toggle */}
+          <button
+            onClick={() => setIsPhysicsOpen(!isPhysicsOpen)}
+            className={`px-3 py-2 rounded-xl text-xs font-medium border backdrop-blur-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-lg ${
+              isPhysicsOpen
+                ? 'bg-amber-950/80 text-amber-300 border-amber-500/60'
+                : 'bg-slate-950/80 text-slate-300 border-slate-800/80 hover:border-slate-700 hover:bg-slate-900'
+            }`}
+            title="Configure Canvas Physics Engine"
+          >
+            <span>⚡</span>
+            <span className="hidden sm:inline">Physics</span>
+          </button>
+
+          {/* Export Canvas Action */}
+          <button
+            onClick={() => setIsExportModalOpen(true)}
+            className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-medium border border-indigo-500/50 shadow-lg shadow-indigo-950/50 transition-all cursor-pointer flex items-center gap-1.5"
+            title="Export Canvas Image/Vector"
+          >
+            <span>📤</span>
+            <span className="hidden sm:inline">Export</span>
+          </button>
+
+          {/* Room Details Overlay Toggle */}
+          <button
+            onClick={() => setIsRoomInfoOpen(!isRoomInfoOpen)}
+            className={`px-3 py-2 rounded-xl text-xs font-medium border backdrop-blur-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-lg ${
+              isRoomInfoOpen
+                ? 'bg-slate-800 text-slate-100 border-slate-700'
+                : 'bg-slate-950/80 text-slate-300 border-slate-800/80 hover:border-slate-700 hover:bg-slate-900'
+            }`}
+          >
+            <span>📋</span>
+            <span className="hidden sm:inline">{isRoomInfoOpen ? 'Hide Info' : 'Room Info'}</span>
+          </button>
+        </div>
       </div>
 
-      {/* User presence - positioned top center */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-10">
-        <UserPresence className="bg-white/90 backdrop-blur-sm px-3 py-2 rounded-lg shadow-lg border border-border-light" />
-      </div>
+      {/* EXPANDABLE DRAWERS & OVERLAYS */}
+      {/* Physics Engine Control Drawer */}
+      {isPhysicsOpen && (
+        <div className="absolute top-18 right-4 z-30 w-64 animate-in fade-in slide-in-from-top-3 duration-200">
+          <PhysicsControls />
+        </div>
+      )}
 
-      {/* Physics controls - positioned top-right */}
-      <div className="absolute top-20 right-4 z-20 w-56">
-        <PhysicsControls />
-      </div>
-
-      {/* Time travel controls - positioned bottom-left */}
-      <TimeTravelControls />
-
-      {/* Export button - positioned next to room info */}
-      <div className="absolute top-4 right-4 z-20 flex flex-col items-end gap-2">
-        <button
-          onClick={() => setIsExportModalOpen(true)}
-          className="px-3 py-2 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg border border-border-light text-sm text-gray-600 hover:bg-white transition-colors"
-          title="Export Canvas"
-        >
-          📤 Export
-        </button>
-        <button
-          onClick={() => setIsRoomInfoOpen(!isRoomInfoOpen)}
-          className="px-3 py-2 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg border border-border-light text-sm text-gray-600 hover:bg-white transition-colors"
-        >
-          {isRoomInfoOpen ? '📋 Hide Info' : '📋 Room Info'}
-        </button>
-      </div>
-
-      {/* Room info panel */}
+      {/* Room Details Info Drawer */}
       {isRoomInfoOpen && (
-        <div className="absolute top-16 right-4 z-20 w-72 animate-in slide-in-from-top-2 duration-200">
+        <div className="absolute top-18 right-4 z-30 animate-in fade-in slide-in-from-top-3 duration-200">
           <RoomInfo />
         </div>
       )}
 
-      {/* Minimap - positioned bottom-right */}
-      <Minimap className="bottom-4 right-4" />
+      {/* Live System Diagnostics / Telemetry Panel */}
+      {isDiagnosticsOpen && (
+        <div className="absolute top-18 right-4 sm:right-auto sm:left-4 z-30 w-72 bg-slate-950/90 border border-slate-800/90 rounded-2xl p-4 text-xs font-mono text-slate-300 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-3 duration-200 space-y-2.5">
+          <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
+            <span className="font-semibold uppercase tracking-wider text-slate-100 text-[11px] flex items-center gap-1.5">
+              <span>📡</span> Telemetry & Status
+            </span>
+            <span className="text-[10px] text-slate-500">{roomId.slice(0, 10)}</span>
+          </div>
 
-      {/* Room invite - positioned bottom-left */}
-      <div className="absolute bottom-4 left-4 z-10 max-w-xs">
+          <div className="space-y-1.5 text-[11px]">
+            <div className="flex justify-between items-center bg-slate-900/60 p-2 rounded-lg border border-slate-800/60">
+              <span className="text-slate-400">Connection</span>
+              <span className={isConnected ? 'text-emerald-400 font-semibold' : 'text-rose-400'}>
+                {isConnected ? '● WebSocket Active' : '○ Offline'}
+              </span>
+            </div>
+
+            <div className="flex justify-between items-center bg-slate-900/60 p-2 rounded-lg border border-slate-800/60">
+              <span className="text-slate-400">Canvas Engine</span>
+              <span className={isInitialized ? 'text-emerald-400' : 'text-amber-400'}>
+                {isInitialized ? '✓ Fabric Ready' : '⏳ Initializing'}
+              </span>
+            </div>
+
+            <div className="flex justify-between items-center bg-slate-900/60 p-2 rounded-lg border border-slate-800/60">
+              <span className="text-slate-400">Physics Simulation</span>
+              <span className={isPhysicsRunning ? 'text-amber-400' : 'text-slate-500'}>
+                {isPhysicsRunning ? '⚡ 60 FPS' : '⏸️ Paused'}
+              </span>
+            </div>
+
+            <div className="flex justify-between items-center bg-slate-900/60 p-2 rounded-lg border border-slate-800/60">
+              <span className="text-slate-400">Time-Travel Engine</span>
+              <span className={isRecording ? 'text-rose-400' : isReplaying ? 'text-indigo-400' : 'text-slate-500'}>
+                {isRecording ? '⏺️ Recording' : isReplaying ? '▶️ Replaying' : '⏹️ Idle'}
+              </span>
+            </div>
+
+            {offlineStatus.pendingCount > 0 && (
+              <div className="flex justify-between items-center bg-amber-950/30 border border-amber-800/40 p-2 rounded-lg text-amber-300">
+                <span>Sync Queue</span>
+                <span>📦 {offlineStatus.pendingCount} Pending</span>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* BOTTOM CONTROL LAYER & HUD */}
+      {/* Time Travel Controls (Bottom-Left Side) */}
+      <div className="absolute bottom-4 left-4 z-20">
+        <TimeTravelControls />
+      </div>
+
+      {/* Room Invite Card (Bottom-Left Floating) */}
+      <div className="absolute bottom-16 left-4 z-10 hidden lg:block">
         <RoomInvite />
       </div>
 
-      {/* Typing indicator - positioned bottom-center */}
-      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10">
-        <TypingIndicator className="bg-white/80 backdrop-blur-sm px-3 py-1 rounded-lg shadow border border-border-light" />
+      {/* Typing Active Indicator (Bottom-Center Floating) */}
+      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
+        <TypingIndicator className="bg-slate-950/80 backdrop-blur-xl text-slate-200 px-3 py-1.5 rounded-full shadow-2xl border border-slate-800/80 text-xs" />
       </div>
 
-      {/* Zoom controls */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
+      {/* Zoom Controls Overlay (Bottom-Center Cluster) */}
+      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 shadow-2xl backdrop-blur-2xl rounded-2xl bg-slate-950/80 border border-slate-800/80 p-1">
         <ZoomControls
           zoom={zoom}
           onZoomIn={zoomIn}
@@ -378,54 +478,25 @@ export default function CanvasRoomPage() {
         />
       </div>
 
-      {/* Export Modal */}
+      {/* Canvas Radar Minimap (Bottom-Right Floating) */}
+      <Minimap className="bottom-4 right-4 z-20 border border-slate-800/80 shadow-2xl rounded-2xl overflow-hidden bg-slate-950/80 backdrop-blur-xl" />
+
+      {/* Canvas Controls Banner (Bottom Hint Bar) */}
+      <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-10 hidden xl:flex items-center gap-3 bg-slate-950/60 backdrop-blur-md px-4 py-1.5 rounded-full border border-slate-800/60 text-[11px] font-mono text-slate-400 shadow-xl pointer-events-none">
+        <span>🖱️ Scroll to zoom</span>
+        <span>•</span>
+        <span>Drag canvas to pan</span>
+        <span>•</span>
+        <span>⚡ Physics enabled</span>
+        <span>•</span>
+        <span>📦 Offline sync active</span>
+      </div>
+
+      {/* Export Workspace Modal */}
       <ExportModal
         isOpen={isExportModalOpen}
         onClose={() => setIsExportModalOpen(false)}
       />
-
-      {/* Room info overlay */}
-      <div className="absolute top-4 right-24 z-10 bg-white/90 backdrop-blur-sm px-3 py-2 rounded-lg shadow-lg border border-border-light text-sm min-w-[140px]">
-        <div className="text-gray-700">
-          <span className="font-medium">Room:</span> {roomId.slice(0, 8)}
-        </div>
-        <div className="text-gray-500 text-xs">
-          <span className="font-medium">User:</span> {username}
-        </div>
-        <div className="text-gray-500 text-xs">
-          <span className="font-medium">Zoom:</span> {Math.round(zoom * 100)}%
-        </div>
-        <div className="flex items-center gap-1 mt-1">
-          <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-green-500' : 'bg-red-500'}`} />
-          <span className="text-[10px] text-gray-400">
-            {isConnected ? 'Connected' : 'Disconnected'}
-          </span>
-        </div>
-        <div className="text-gray-400 text-[10px] mt-1">
-          {isInitialized ? '✅ Canvas ready' : '⏳ Initializing...'}
-        </div>
-        <div className="text-gray-400 text-[10px] mt-0.5">
-          {isPhysicsRunning ? '⚡ Physics active' : '⏸️ Physics paused'}
-        </div>
-        <div className="text-gray-400 text-[10px] mt-0.5">
-          {isRecording ? '⏺️ Recording' : isReplaying ? '▶️ Replaying' : '⏹️ Idle'}
-        </div>
-        {offlineStatus.pendingCount > 0 && (
-          <div className="text-gray-400 text-[10px] mt-0.5">
-            📦 {offlineStatus.pendingCount} offline operations pending
-          </div>
-        )}
-        {!offlineStatus.isOnline && (
-          <div className="text-yellow-500 text-[10px] mt-0.5">
-            📡 Offline mode
-          </div>
-        )}
-      </div>
-
-      {/* Canvas instructions */}
-      <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-10 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-lg shadow border border-border-light text-xs text-gray-500">
-        🖱️ Scroll to zoom • Drag to pan • Click objects to select • ⚡ Physics enabled • 🗺️ Radar shows users • 📦 Offline support • 📤 Export canvas • ⏱️ Time travel
-      </div>
     </div>
   )
 }

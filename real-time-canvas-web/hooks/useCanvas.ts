@@ -10,12 +10,16 @@ import {
   Point,
   TPointerEvent,
   ModifiedEvent,
+  FabricObjectProps,
+  ITextProps,
+  RectProps,
+  CircleProps,
+  ImageProps,
 } from 'fabric'
 import { useCanvasStore } from '@/store/canvasStore'
 import { initializeCanvas, disposeCanvas, ZOOM_CONFIG } from '@/lib/canvas/fabricConfig'
 import { CanvasRenderer, createRenderer } from '@/lib/canvas/renderer'
 import { ObjectFactory, CanvasObject, WithCustomProps } from '@/lib/canvas/objectFactory'
-import { ITextProps, RectProps, CircleProps, ImageProps } from 'fabric'
 
 // Event payload types for Fabric v6 canvas events
 interface FabricSelectionEvent {
@@ -262,6 +266,34 @@ export function useCanvas(options: UseCanvasOptions = {}) {
     return obj
   }, [])
 
+  const addTriangle = useCallback((options?: WithCustomProps<FabricObjectProps>) => {
+    if (!rendererRef.current) return
+
+    const factoryFn = (ObjectFactory as any).createTriangle
+      ? (ObjectFactory as any).createTriangle
+      : (opts: any) =>
+          ObjectFactory.createRectangle({
+            width: 100,
+            height: 100,
+            left: 100,
+            top: 100,
+            ...opts,
+          })
+
+    const obj = factoryFn({
+      left: 100,
+      top: 100,
+      width: 100,
+      height: 100,
+      ...options,
+    })
+
+    rendererRef.current.addObject(obj, obj.id)
+    useCanvasStore.getState().addObject(obj)
+
+    return obj
+  }, [])
+
   const addStickyNote = useCallback((text: string, options?: WithCustomProps<RectProps>) => {
     if (!rendererRef.current) return
 
@@ -438,6 +470,7 @@ export function useCanvas(options: UseCanvasOptions = {}) {
     addText,
     addRectangle,
     addCircle,
+    addTriangle,
     addStickyNote,
     addImage,
     removeObject,
