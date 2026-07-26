@@ -12,6 +12,7 @@ func SetupRouter(
 	authHandler *handlers.AuthHandler,
 	roomHandler *handlers.RoomHandler,
 	canvasHandler *handlers.CanvasHandler,
+	wsHandler *handlers.WebSocketHandler,
 ) *gin.Engine {
 	router := gin.Default()
 
@@ -22,6 +23,9 @@ func SetupRouter(
 	router.GET("/health", func(c *gin.Context) {
 		c.JSON(200, gin.H{"status": "ok"})
 	})
+
+	// WebSocket endpoint (no auth required for WebSocket)
+	router.GET("/ws", wsHandler.HandleWebSocket)
 
 	// API v1 routes
 	v1 := router.Group("/api/v1")
