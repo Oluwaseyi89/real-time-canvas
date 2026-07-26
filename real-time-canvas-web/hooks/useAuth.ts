@@ -5,6 +5,7 @@
 
 import { useState, useCallback, useEffect } from 'react'
 import { useRoomStore } from '@/store/roomStore'
+import { apiClient } from '@/lib/api/client'
 import { nanoid } from 'nanoid'
 
 interface UseAuthOptions {
@@ -44,25 +45,134 @@ export function useAuth(options: UseAuthOptions = {}) {
       setError(null)
 
       try {
-        // Generate guest user ID
-        const guestId = `guest-${nanoid(12)}`
+        // Call backend guest login
+        const response = await apiClient.guestLogin({ username: usernameInput.trim() })
+        
+        if (response.data) {
+          const user = response.data
+          
+          // Store in localStorage
+          localStorage.setItem('userId', user.id)
+          localStorage.setItem('username', user.username)
+          localStorage.setItem('authToken', `token-${user.id}`)
+          
+          // Store in session storage as fallback
+          sessionStorage.setItem('guestId', user.id)
+          sessionStorage.setItem('username', user.username)
 
-        // Store in session storage
-        sessionStorage.setItem('guestId', guestId)
-        sessionStorage.setItem('username', usernameInput.trim())
+          // Update auth state
+          setAuth({
+            isAuthenticated: true,
+            userId: user.id,
+            username: user.username,
+            guestMode: true,
+          })
 
-        // Update auth state
-        setAuth({
-          isAuthenticated: true,
-          userId: guestId,
-          username: usernameInput.trim(),
-          guestMode: true,
+          onLogin?.(user.username, true)
+          return true
+        }
+        return false
+      } catch (error: any) {
+        const errorMessage = error.message || 'Failed to login as guest'
+        setError(errorMessage)
+        return false
+      } finally {
+        setIsLoggingIn(false)
+        setLoading(false)
+      }
+    },
+    [setAuth, setError, setLoading, onLogin]
+  )
+
+  /**
+   * Login with username and password
+   */
+  const login = useCallback(
+    async (usernameInput: string, password: string) => {
+      if (!usernameInput.trim()) {
+        setError('Username is required')
+        return false
+      }
+
+      setIsLoggingIn(true)
+      setLoading(true)
+      setError(null)
+
+      try {
+        const response = await apiClient.login({ username: usernameInput.trim(), password })
+        
+        if (response.data) {
+          const user = response.data
+          
+          localStorage.setItem('userId', user.id)
+          localStorage.setItem('username', user.username)
+          localStorage.setItem('authToken', `token-${user.id}`)
+          
+          setAuth({
+            isAuthenticated: true,
+            userId: user.id,
+            username: user.username,
+            guestMode: false,
+          })
+
+          onLogin?.(user.username, false)
+          return true
+        }
+        return false
+      } catch (error: any) {
+        const errorMessage = error.message || 'Invalid credentials'
+        setError(errorMessage)
+        return false
+      } finally {
+        setIsLoggingIn(false)
+        setLoading(false)
+      }
+    },
+    [setAuth, setError, setLoading, onLogin]
+  )
+
+  /**
+   * Register a new user
+   */
+  const register = useCallback(
+    async (usernameInput: string, email: string, password: string) => {
+      if (!usernameInput.trim()) {
+        setError('Username is required')
+        return false
+      }
+
+      setIsLoggingIn(true)
+      setLoading(true)
+      setError(null)
+
+      try {
+        const response = await apiClient.register({ 
+          username: usernameInput.trim(), 
+          email, 
+          password,
+          isGuest: false,
         })
+        
+        if (response.data) {
+          const user = response.data
+          
+          localStorage.setItem('userId', user.id)
+          localStorage.setItem('username', user.username)
+          localStorage.setItem('authToken', `token-${user.id}`)
+          
+          setAuth({
+            isAuthenticated: true,
+            userId: user.id,
+            username: user.username,
+            guestMode: false,
+          })
 
-        onLogin?.(usernameInput.trim(), true)
-        return true
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Failed to login as guest'
+          onLogin?.(user.username, false)
+          return true
+        }
+        return false
+      } catch (error: any) {
+        const errorMessage = error.message || 'Registration failed'
         setError(errorMessage)
         return false
       } finally {
@@ -78,9 +188,14 @@ export function useAuth(options: UseAuthOptions = {}) {
    */
   const logout = useCallback(() => {
     try {
-      // Clear session storage
+      // Clear all storage
+      localStorage.removeItem('guestId')
+      localStorage.removeItem('username')
+      localStorage.removeItem('userId')
+      localStorage.removeItem('authToken')
       sessionStorage.removeItem('guestId')
       sessionStorage.removeItem('username')
+      sessionStorage.removeItem('currentRoomId')
 
       // Clear auth state
       clearAuth()
@@ -91,24 +206,46 @@ export function useAuth(options: UseAuthOptions = {}) {
   }, [clearAuth, onLogout])
 
   /**
-   * Check if user is authenticated
+   * Check if user is authenticated via backend
    */
-  const checkAuth = useCallback(() => {
-    const storedUsername = sessionStorage.getItem('username')
-    const storedGuestId = sessionStorage.getItem('guestId')
+  const checkAuth = useCallback(async () => {
+    try {
+      const token = localStorage.getItem('authToken')
+      if (!token) {
+        return false
+      }
 
-    if (storedUsername && storedGuestId) {
-      if (!isAuthenticated) {
+      // Verify with backend
+      const response = await apiClient.getProfile()
+      if (response.data) {
+        const user = response.data
         setAuth({
           isAuthenticated: true,
-          userId: storedGuestId,
-          username: storedUsername,
-          guestMode: true,
+          userId: user.id,
+          username: user.username,
+          guestMode: user.isGuest || false,
         })
+        return true
       }
-      return true
+      return false
+    } catch (error) {
+      // If backend fails, fallback to local session
+      const storedUsername = sessionStorage.getItem('username')
+      const storedGuestId = sessionStorage.getItem('guestId')
+
+      if (storedUsername && storedGuestId) {
+        if (!isAuthenticated) {
+          setAuth({
+            isAuthenticated: true,
+            userId: storedGuestId,
+            username: storedUsername,
+            guestMode: true,
+          })
+        }
+        return true
+      }
+      return false
     }
-    return false
   }, [isAuthenticated, setAuth])
 
   /**
@@ -128,6 +265,8 @@ export function useAuth(options: UseAuthOptions = {}) {
     isLoading: isLoading || isLoggingIn,
     error,
     loginAsGuest,
+    login,
+    register,
     logout,
     checkAuth,
   }
