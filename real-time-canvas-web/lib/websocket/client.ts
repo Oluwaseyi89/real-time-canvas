@@ -52,7 +52,6 @@ function isCursorPosition(payload: unknown): payload is CursorPosition {
   return (
     typeof payload === 'object' &&
     payload !== null &&
-    'userId' in payload &&
     'x' in payload &&
     'y' in payload
   )
@@ -143,6 +142,7 @@ export class WebSocketClient {
   private reconnectTimeout: NodeJS.Timeout | null = null
   private heartbeatInterval: NodeJS.Timeout | null = null
   private isConnecting = false
+  private isAuthenticated = false
 
   constructor(config: WebSocketConfig) {
     this.config = {
@@ -191,6 +191,7 @@ export class WebSocketClient {
     }
     this.setState('disconnected')
     this.isConnecting = false
+    this.isAuthenticated = false
   }
 
   /**
@@ -283,6 +284,7 @@ export class WebSocketClient {
     this.isConnecting = false
     this.reconnectAttempts = 0
     this.setState('connected')
+    this.isAuthenticated = true
     this.startHeartbeat()
 
     // Send queued messages
@@ -321,6 +323,7 @@ export class WebSocketClient {
   private handleClose(event: CloseEvent): void {
     this.stopHeartbeat()
     this.isConnecting = false
+    this.isAuthenticated = false
 
     if (event.wasClean) {
       this.setState('disconnected')

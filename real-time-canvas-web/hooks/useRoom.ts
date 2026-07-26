@@ -6,7 +6,8 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useRoomStore } from '@/store/roomStore'
 import { useAuth } from './useAuth'
-import type { CreateRoomRequest, JoinRoomRequest, Room } from '@/types/room'
+import { apiClient } from '@/lib/api/client'
+import type { Room, RoomUser, RoomSettings } from '@/types/room'
 import { nanoid } from 'nanoid'
 
 interface UseRoomOptions {
@@ -31,11 +32,30 @@ export function useRoom(options: UseRoomOptions = {}) {
     removeRoom,
     setLoading,
     setError,
-    clearAuth,
   } = useRoomStore()
 
   const [isCreating, setIsCreating] = useState(false)
   const [isJoining, setIsJoining] = useState(false)
+
+  /**
+   * Fetch user rooms from backend
+   */
+  const fetchUserRooms = useCallback(async () => {
+    if (!isAuthenticated || !userId) return
+
+    try {
+      setLoading(true)
+      const response = await apiClient.getRooms()
+      if (response.data && Array.isArray(response.data)) {
+        setRooms(response.data)
+      }
+    } catch (error) {
+      console.error('[useRoom] Failed to fetch rooms:', error)
+      // Fallback to local rooms
+    } finally {
+      setLoading(false)
+    }
+  }, [isAuthenticated, userId, setRooms, setLoading])
 
   /**
    * Create a new room
@@ -57,50 +77,24 @@ export function useRoom(options: UseRoomOptions = {}) {
       setError(null)
 
       try {
-        // Generate room ID
-        const roomId = `room-${nanoid(10)}`
-        const inviteCode = nanoid(8)
-
-        // Create room object
-        const room: Room = {
-          id: roomId,
+        // Call backend to create room
+        const response = await apiClient.createRoom({
           name: roomName.trim(),
-          ownerId: userId!,
-          createdAt: new Date(),
-          updatedAt: new Date(),
-          users: [
-            {
-              userId: userId!,
-              username: username,
-              role: 'owner',
-              joinedAt: new Date(),
-              lastActiveAt: new Date(),
-            },
-          ],
           isPrivate: options.isPrivate || false,
-          inviteCode: options.isPrivate ? inviteCode : undefined,
-          settings: {
-            allowGuestUsers: true,
-            allowObjectEditing: true,
-            allowPhysics: true,
-            maxUsers: 50,
-            canvasBackground: '#f0f0f0',
-          },
-          objectCount: 0,
-          lastActivity: new Date(),
+          maxUsers: 50,
+        })
+
+        if (response.data) {
+          const room = response.data as Room
+          addRoom(room)
+          setCurrentRoom(room)
+          sessionStorage.setItem('currentRoomId', room.id)
+          onRoomCreated?.(room)
+          return room
         }
-
-        // Store in local state
-        addRoom(room)
-        setCurrentRoom(room)
-
-        // Store room in session
-        sessionStorage.setItem('currentRoomId', roomId)
-
-        onRoomCreated?.(room)
-        return room
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Failed to create room'
+        return null
+      } catch (error: any) {
+        const errorMessage = error.message || 'Failed to create room'
         setError(errorMessage)
         return null
       } finally {
@@ -108,7 +102,7 @@ export function useRoom(options: UseRoomOptions = {}) {
         setLoading(false)
       }
     },
-    [isAuthenticated, username, userId, addRoom, setCurrentRoom, setError, setLoading, onRoomCreated]
+    [isAuthenticated, username, addRoom, setCurrentRoom, setError, setLoading, onRoomCreated]
   )
 
   /**
@@ -126,73 +120,27 @@ export function useRoom(options: UseRoomOptions = {}) {
       setError(null)
 
       try {
-        // Check if room exists in local store
-        let room = rooms.find((r) => r.id === roomId)
+        // Call backend to join room
+        const response = await apiClient.joinRoom(roomId, { inviteCode })
 
-        if (!room) {
-          // Try to find room with invite code
-          room = rooms.find((r) => r.inviteCode === inviteCode)
-        }
-
-        if (!room) {
-          // If room not found locally, try to join via API
-          // For now, create a mock response
-          const mockRoom: Room = {
-            id: roomId,
-            name: `Room ${roomId.slice(0, 6)}`,
-            ownerId: 'owner-' + nanoid(8),
-            createdAt: new Date(),
-            updatedAt: new Date(),
-            users: [
-              {
-                userId: userId!,
-                username: username,
-                role: 'editor',
-                joinedAt: new Date(),
-                lastActiveAt: new Date(),
-              },
-            ],
-            isPrivate: !!inviteCode,
-            inviteCode: inviteCode || undefined,
-            settings: {
-              allowGuestUsers: true,
-              allowObjectEditing: true,
-              allowPhysics: true,
-              maxUsers: 50,
-              canvasBackground: '#f0f0f0',
-            },
-            objectCount: 0,
-            lastActivity: new Date(),
+        if (response.data) {
+          const room = response.data as Room
+          // Check if room exists in local store
+          const existingIndex = rooms.findIndex(r => r.id === room.id)
+          if (existingIndex >= 0) {
+            updateRoom(room.id, room)
+          } else {
+            addRoom(room)
           }
-          room = mockRoom
-          addRoom(room)
-        } else {
-          // Update existing room with new user
-          const updatedRoom = {
-            ...room,
-            users: [
-              ...room.users,
-              {
-                userId: userId!,
-                username: username,
-                role: 'editor' as const,
-                joinedAt: new Date(),
-                lastActiveAt: new Date(),
-              },
-            ],
-            updatedAt: new Date(),
-          }
-          updateRoom(roomId, updatedRoom)
-          room = updatedRoom
+          
+          setCurrentRoom(room)
+          sessionStorage.setItem('currentRoomId', room.id)
+          onRoomJoined?.(room)
+          return room
         }
-
-        setCurrentRoom(room)
-        sessionStorage.setItem('currentRoomId', roomId)
-
-        onRoomJoined?.(room)
-        return room
-      } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : 'Failed to join room'
+        return null
+      } catch (error: any) {
+        const errorMessage = error.message || 'Failed to join room'
         setError(errorMessage)
         return null
       } finally {
@@ -200,19 +148,30 @@ export function useRoom(options: UseRoomOptions = {}) {
         setLoading(false)
       }
     },
-    [isAuthenticated, username, userId, rooms, addRoom, updateRoom, setCurrentRoom, setError, setLoading, onRoomJoined]
+    [isAuthenticated, username, rooms, addRoom, updateRoom, setCurrentRoom, setError, setLoading, onRoomJoined]
   )
 
   /**
    * Leave current room
    */
-  const leaveRoom = useCallback(() => {
-    if (currentRoom) {
+  const leaveRoom = useCallback(async () => {
+    if (!currentRoom || !userId) return
+
+    try {
+      // Call backend to leave room
+      await apiClient.leaveRoom(currentRoom.id)
+      
+      sessionStorage.removeItem('currentRoomId')
+      setCurrentRoom(null)
+      onRoomLeft?.()
+    } catch (error) {
+      console.error('[useRoom] Failed to leave room:', error)
+      // Fallback: still leave locally
       sessionStorage.removeItem('currentRoomId')
       setCurrentRoom(null)
       onRoomLeft?.()
     }
-  }, [currentRoom, setCurrentRoom, onRoomLeft])
+  }, [currentRoom, userId, setCurrentRoom, onRoomLeft])
 
   /**
    * Get room invite link
@@ -254,17 +213,32 @@ export function useRoom(options: UseRoomOptions = {}) {
   }, [getRoomInviteLink])
 
   /**
-   * Load current room from session
+   * Load current room from session or backend
    */
-  const loadCurrentRoom = useCallback(() => {
+  const loadCurrentRoom = useCallback(async () => {
     const roomId = sessionStorage.getItem('currentRoomId')
     if (roomId) {
+      // Try to find in local store first
       const room = rooms.find((r) => r.id === roomId)
       if (room) {
         setCurrentRoom(room)
+        return
+      }
+
+      // If not in local store, fetch from backend
+      try {
+        const response = await apiClient.getRoom(roomId)
+        if (response.data) {
+          const room = response.data as Room
+          addRoom(room)
+          setCurrentRoom(room)
+        }
+      } catch (error) {
+        console.error('[useRoom] Failed to load room:', error)
+        sessionStorage.removeItem('currentRoomId')
       }
     }
-  }, [rooms, setCurrentRoom])
+  }, [rooms, setCurrentRoom, addRoom])
 
   /**
    * Get user's rooms
@@ -272,7 +246,7 @@ export function useRoom(options: UseRoomOptions = {}) {
   const getUserRooms = useCallback(() => {
     if (!userId) return []
     return rooms.filter((room) =>
-      room.users.some((user) => user.userId === userId)
+      room.users?.some((user) => user.userId === userId)
     )
   }, [rooms, userId])
 
@@ -299,15 +273,18 @@ export function useRoom(options: UseRoomOptions = {}) {
    */
   const isInRoom = useCallback((): boolean => {
     if (!currentRoom || !userId) return false
-    return currentRoom.users.some((user) => user.userId === userId)
+    return currentRoom.users?.some((user) => user.userId === userId) || false
   }, [currentRoom, userId])
 
   /**
    * Load current room on mount
    */
   useEffect(() => {
-    loadCurrentRoom()
-  }, [loadCurrentRoom])
+    if (isAuthenticated) {
+      fetchUserRooms()
+      loadCurrentRoom()
+    }
+  }, [isAuthenticated, fetchUserRooms, loadCurrentRoom])
 
   return {
     // State
@@ -318,8 +295,8 @@ export function useRoom(options: UseRoomOptions = {}) {
     isCreating,
     isJoining,
     error,
-    isInRoom: isInRoom(), // Computed boolean value
-    isOwner: isRoomOwner(), // Computed boolean value
+    isInRoom: isInRoom(),
+    isOwner: isRoomOwner(),
 
     // Actions
     createRoom,
@@ -331,5 +308,6 @@ export function useRoom(options: UseRoomOptions = {}) {
     loadCurrentRoom,
     getRoomById,
     isRoomOwner,
+    fetchUserRooms,
   }
 }
