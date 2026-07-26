@@ -10,6 +10,7 @@ import { useCollaboration } from '@/hooks/useCollaboration'
 import { usePhysics } from '@/hooks/usePhysics'
 import { useMinimap } from '@/hooks/useMinimap'
 import { useOfflineSync } from '@/hooks/useOfflineSync'
+import { ExportModal } from '@/components/export/ExportModal'
 import { ZoomControls } from '@/components/canvas/ZoomControls'
 import { Toolbar } from '@/components/canvas/tools/Toolbar'
 import { PhysicsControls } from '@/components/canvas/physics/PhysicsControls'
@@ -30,6 +31,7 @@ export default function CanvasRoomPage() {
   const { currentRoom, joinRoom, leaveRoom, isInRoom } = useRoom()
   const [isReady, setIsReady] = useState(false)
   const [isRoomInfoOpen, setIsRoomInfoOpen] = useState(false)
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false)
   const [userId] = useState(() => `user-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`)
   
   const canvasElementRef = useRef<HTMLCanvasElement | null>(null)
@@ -73,7 +75,6 @@ export default function CanvasRoomPage() {
     onObjectAdded: async (obj) => {
       const custom = obj as any
       if (custom.id && custom.type) {
-        // Queue offline operation
         try {
           await queueOperation('object:create', {
             objectId: custom.id,
@@ -137,7 +138,6 @@ export default function CanvasRoomPage() {
     autoConnect: false,
     onConnect: () => {
       console.log('[CanvasRoom] WebSocket connected')
-      // Process offline queue when connected
       if (offlineReady) {
         processQueue()
       }
@@ -319,21 +319,15 @@ export default function CanvasRoomPage() {
         <PhysicsControls />
       </div>
 
-      {/* Minimap - positioned bottom-right */}
-      <Minimap className="bottom-4 right-4" />
-
-      {/* Room invite - positioned bottom-left */}
-      <div className="absolute bottom-4 left-4 z-10 max-w-xs">
-        <RoomInvite />
-      </div>
-
-      {/* Typing indicator - positioned bottom-center */}
-      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10">
-        <TypingIndicator className="bg-white/80 backdrop-blur-sm px-3 py-1 rounded-lg shadow border border-border-light" />
-      </div>
-
-      {/* Room info toggle */}
+      {/* Export button - positioned next to room info */}
       <div className="absolute top-4 right-4 z-20 flex flex-col items-end gap-2">
+        <button
+          onClick={() => setIsExportModalOpen(true)}
+          className="px-3 py-2 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg border border-border-light text-sm text-gray-600 hover:bg-white transition-colors"
+          title="Export Canvas"
+        >
+          📤 Export
+        </button>
         <button
           onClick={() => setIsRoomInfoOpen(!isRoomInfoOpen)}
           className="px-3 py-2 bg-white/90 backdrop-blur-sm rounded-lg shadow-lg border border-border-light text-sm text-gray-600 hover:bg-white transition-colors"
@@ -349,6 +343,19 @@ export default function CanvasRoomPage() {
         </div>
       )}
 
+      {/* Minimap - positioned bottom-right */}
+      <Minimap className="bottom-4 right-4" />
+
+      {/* Room invite - positioned bottom-left */}
+      <div className="absolute bottom-4 left-4 z-10 max-w-xs">
+        <RoomInvite />
+      </div>
+
+      {/* Typing indicator - positioned bottom-center */}
+      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10">
+        <TypingIndicator className="bg-white/80 backdrop-blur-sm px-3 py-1 rounded-lg shadow border border-border-light" />
+      </div>
+
       {/* Zoom controls */}
       <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-10">
         <ZoomControls
@@ -360,8 +367,14 @@ export default function CanvasRoomPage() {
         />
       </div>
 
+      {/* Export Modal */}
+      <ExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+      />
+
       {/* Room info overlay */}
-      <div className="absolute top-4 right-20 z-10 bg-white/90 backdrop-blur-sm px-3 py-2 rounded-lg shadow-lg border border-border-light text-sm min-w-[140px]">
+      <div className="absolute top-4 right-24 z-10 bg-white/90 backdrop-blur-sm px-3 py-2 rounded-lg shadow-lg border border-border-light text-sm min-w-[140px]">
         <div className="text-gray-700">
           <span className="font-medium">Room:</span> {roomId.slice(0, 8)}
         </div>
@@ -397,7 +410,7 @@ export default function CanvasRoomPage() {
 
       {/* Canvas instructions */}
       <div className="absolute bottom-24 left-1/2 -translate-x-1/2 z-10 bg-white/80 backdrop-blur-sm px-4 py-2 rounded-lg shadow border border-border-light text-xs text-gray-500">
-        🖱️ Scroll to zoom • Drag to pan • Click objects to select • ⚡ Physics enabled • 🗺️ Radar shows users • 📦 Offline support
+        🖱️ Scroll to zoom • Drag to pan • Click objects to select • ⚡ Physics enabled • 🗺️ Radar shows users • 📦 Offline support • 📤 Export canvas
       </div>
     </div>
   )
