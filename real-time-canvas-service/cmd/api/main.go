@@ -9,6 +9,7 @@ import (
 	"real-time-canvas/real-time-canvas-service/internal/handlers"
 	"real-time-canvas/real-time-canvas-service/internal/repository/postgres"
 	"real-time-canvas/real-time-canvas-service/internal/services"
+	"real-time-canvas/real-time-canvas-service/internal/websocket"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
@@ -65,8 +66,16 @@ func main() {
 	roomHandler := handlers.NewRoomHandler(roomService)
 	canvasHandler := handlers.NewCanvasHandler(canvasService)
 
+	// Initialize WebSocket hub
+	hub := websocket.NewHub()
+	wsHandler := handlers.NewWebSocketHandler(hub)
+
+	// Start WebSocket hub in a goroutine
+	go hub.Run()
+	log.Println("WebSocket hub started")
+
 	// Setup router
-	router := api.SetupRouter(authHandler, roomHandler, canvasHandler)
+	router := api.SetupRouter(authHandler, roomHandler, canvasHandler, wsHandler)
 
 	// Start server
 	port := os.Getenv("PORT")
