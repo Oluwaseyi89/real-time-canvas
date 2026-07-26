@@ -45,7 +45,7 @@ func SetupRouter(
 			// User profile
 			protected.GET("/auth/profile", authHandler.GetProfile)
 
-			// Room routes
+			// Room routes - using :id consistently
 			protected.POST("/rooms", roomHandler.CreateRoom)
 			protected.GET("/rooms", roomHandler.GetUserRooms)
 			protected.GET("/rooms/:id", roomHandler.GetRoom)
@@ -55,14 +55,14 @@ func SetupRouter(
 			protected.POST("/rooms/:id/leave", roomHandler.LeaveRoom)
 			protected.GET("/rooms/:id/users", roomHandler.GetRoomUsers)
 
-			// Canvas routes
-			protected.POST("/rooms/:roomId/objects", canvasHandler.CreateObject)
-			protected.GET("/rooms/:roomId/objects", canvasHandler.GetObjects)
-			protected.GET("/rooms/:roomId/objects/:objectId", canvasHandler.GetObject)
-			protected.PUT("/rooms/:roomId/objects/:objectId", canvasHandler.UpdateObject)
-			protected.DELETE("/rooms/:roomId/objects/:objectId", canvasHandler.DeleteObject)
-			protected.POST("/rooms/:roomId/objects/batch", canvasHandler.BatchCreateObjects)
-			protected.POST("/rooms/:roomId/objects/clear", canvasHandler.ClearRoomObjects)
+			// Canvas routes - also use :id for room ID to avoid conflicts
+			protected.POST("/rooms/:id/objects", canvasHandler.CreateObject)
+			protected.GET("/rooms/:id/objects", canvasHandler.GetObjects)
+			protected.GET("/rooms/:id/objects/:objectId", canvasHandler.GetObject)
+			protected.PUT("/rooms/:id/objects/:objectId", canvasHandler.UpdateObject)
+			protected.DELETE("/rooms/:id/objects/:objectId", canvasHandler.DeleteObject)
+			protected.POST("/rooms/:id/objects/batch", canvasHandler.BatchCreateObjects)
+			protected.POST("/rooms/:id/objects/clear", canvasHandler.ClearRoomObjects)
 		}
 	}
 

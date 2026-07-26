@@ -4,6 +4,7 @@ import (
 	"net/http"
 
 	"real-time-canvas/real-time-canvas-service/internal/models"
+	"real-time-canvas/real-time-canvas-service/internal/models/dto"
 	"real-time-canvas/real-time-canvas-service/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -20,19 +21,8 @@ func NewCanvasHandler(canvasService *services.CanvasService) *CanvasHandler {
 }
 
 // CreateObject creates a new canvas object
-// @Summary Create canvas object
-// @Tags Canvas
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Param roomId path string true "Room ID"
-// @Param request body models.CreateObjectRequest true "Object details"
-// @Success 201 {object} models.CanvasObjectResponse
-// @Failure 400 {object} map[string]string
-// @Failure 403 {object} map[string]string
-// @Router /rooms/{roomId}/objects [post]
 func (h *CanvasHandler) CreateObject(c *gin.Context) {
-	roomID := c.Param("roomId")
+	roomID := c.Param("id") // Changed from "roomId" to "id"
 	userID := c.GetString("userID")
 
 	if roomID == "" {
@@ -44,7 +34,7 @@ func (h *CanvasHandler) CreateObject(c *gin.Context) {
 		return
 	}
 
-	var req models.CreateObjectRequest
+	var req dto.CreateObjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -56,21 +46,21 @@ func (h *CanvasHandler) CreateObject(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, obj.ToResponse())
+	response := dto.ToCanvasObjectResponse(
+		obj.ID, obj.RoomID, obj.UserID, obj.ObjectType,
+		obj.Data, obj.PositionX, obj.PositionY,
+		obj.Width, obj.Height, obj.Rotation,
+		obj.ZIndex, obj.Version,
+		obj.CreatedAt, obj.UpdatedAt,
+		obj.User.Username,
+	)
+
+	c.JSON(http.StatusCreated, response)
 }
 
 // GetObjects gets all objects in a room
-// @Summary Get room objects
-// @Tags Canvas
-// @Produce json
-// @Security BearerAuth
-// @Param roomId path string true "Room ID"
-// @Param type query string false "Filter by object type"
-// @Success 200 {array} models.CanvasObjectResponse
-// @Failure 404 {object} map[string]string
-// @Router /rooms/{roomId}/objects [get]
 func (h *CanvasHandler) GetObjects(c *gin.Context) {
-	roomID := c.Param("roomId")
+	roomID := c.Param("id") // Changed from "roomId" to "id"
 	objectType := c.Query("type")
 
 	if roomID == "" {
@@ -92,24 +82,22 @@ func (h *CanvasHandler) GetObjects(c *gin.Context) {
 		return
 	}
 
-	responses := make([]models.CanvasObjectResponse, len(objects))
+	responses := make([]dto.CanvasObjectResponse, len(objects))
 	for i, obj := range objects {
-		responses[i] = obj.ToResponse()
+		responses[i] = dto.ToCanvasObjectResponse(
+			obj.ID, obj.RoomID, obj.UserID, obj.ObjectType,
+			obj.Data, obj.PositionX, obj.PositionY,
+			obj.Width, obj.Height, obj.Rotation,
+			obj.ZIndex, obj.Version,
+			obj.CreatedAt, obj.UpdatedAt,
+			obj.User.Username,
+		)
 	}
 
 	c.JSON(http.StatusOK, responses)
 }
 
 // GetObject gets a single canvas object
-// @Summary Get canvas object
-// @Tags Canvas
-// @Produce json
-// @Security BearerAuth
-// @Param roomId path string true "Room ID"
-// @Param objectId path string true "Object ID"
-// @Success 200 {object} models.CanvasObjectResponse
-// @Failure 404 {object} map[string]string
-// @Router /rooms/{roomId}/objects/{objectId} [get]
 func (h *CanvasHandler) GetObject(c *gin.Context) {
 	objectID := c.Param("objectId")
 
@@ -128,22 +116,19 @@ func (h *CanvasHandler) GetObject(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, obj.ToResponse())
+	response := dto.ToCanvasObjectResponse(
+		obj.ID, obj.RoomID, obj.UserID, obj.ObjectType,
+		obj.Data, obj.PositionX, obj.PositionY,
+		obj.Width, obj.Height, obj.Rotation,
+		obj.ZIndex, obj.Version,
+		obj.CreatedAt, obj.UpdatedAt,
+		obj.User.Username,
+	)
+
+	c.JSON(http.StatusOK, response)
 }
 
 // UpdateObject updates a canvas object
-// @Summary Update canvas object
-// @Tags Canvas
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Param roomId path string true "Room ID"
-// @Param objectId path string true "Object ID"
-// @Param request body models.UpdateObjectRequest true "Object updates"
-// @Success 200 {object} models.CanvasObjectResponse
-// @Failure 400 {object} map[string]string
-// @Failure 403 {object} map[string]string
-// @Router /rooms/{roomId}/objects/{objectId} [put]
 func (h *CanvasHandler) UpdateObject(c *gin.Context) {
 	objectID := c.Param("objectId")
 	userID := c.GetString("userID")
@@ -157,7 +142,7 @@ func (h *CanvasHandler) UpdateObject(c *gin.Context) {
 		return
 	}
 
-	var req models.UpdateObjectRequest
+	var req dto.UpdateObjectRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -169,20 +154,24 @@ func (h *CanvasHandler) UpdateObject(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, obj.ToResponse())
+	if obj == nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "object not found"})
+		return
+	}
+
+	response := dto.ToCanvasObjectResponse(
+		obj.ID, obj.RoomID, obj.UserID, obj.ObjectType,
+		obj.Data, obj.PositionX, obj.PositionY,
+		obj.Width, obj.Height, obj.Rotation,
+		obj.ZIndex, obj.Version,
+		obj.CreatedAt, obj.UpdatedAt,
+		obj.User.Username,
+	)
+
+	c.JSON(http.StatusOK, response)
 }
 
 // DeleteObject deletes a canvas object
-// @Summary Delete canvas object
-// @Tags Canvas
-// @Produce json
-// @Security BearerAuth
-// @Param roomId path string true "Room ID"
-// @Param objectId path string true "Object ID"
-// @Success 204 "No Content"
-// @Failure 403 {object} map[string]string
-// @Failure 404 {object} map[string]string
-// @Router /rooms/{roomId}/objects/{objectId} [delete]
 func (h *CanvasHandler) DeleteObject(c *gin.Context) {
 	objectID := c.Param("objectId")
 	userID := c.GetString("userID")
@@ -210,19 +199,8 @@ func (h *CanvasHandler) DeleteObject(c *gin.Context) {
 }
 
 // BatchCreateObjects creates multiple canvas objects
-// @Summary Batch create canvas objects
-// @Tags Canvas
-// @Accept json
-// @Produce json
-// @Security BearerAuth
-// @Param roomId path string true "Room ID"
-// @Param request body models.BatchCreateObjectsRequest true "Objects to create"
-// @Success 201 {array} models.CanvasObjectResponse
-// @Failure 400 {object} map[string]string
-// @Failure 403 {object} map[string]string
-// @Router /rooms/{roomId}/objects/batch [post]
 func (h *CanvasHandler) BatchCreateObjects(c *gin.Context) {
-	roomID := c.Param("roomId")
+	roomID := c.Param("id") // Changed from "roomId" to "id"
 	userID := c.GetString("userID")
 
 	if roomID == "" {
@@ -234,7 +212,7 @@ func (h *CanvasHandler) BatchCreateObjects(c *gin.Context) {
 		return
 	}
 
-	var req models.BatchCreateObjectsRequest
+	var req dto.BatchCreateObjectsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -246,25 +224,24 @@ func (h *CanvasHandler) BatchCreateObjects(c *gin.Context) {
 		return
 	}
 
-	responses := make([]models.CanvasObjectResponse, len(objects))
+	responses := make([]dto.CanvasObjectResponse, len(objects))
 	for i, obj := range objects {
-		responses[i] = obj.ToResponse()
+		responses[i] = dto.ToCanvasObjectResponse(
+			obj.ID, obj.RoomID, obj.UserID, obj.ObjectType,
+			obj.Data, obj.PositionX, obj.PositionY,
+			obj.Width, obj.Height, obj.Rotation,
+			obj.ZIndex, obj.Version,
+			obj.CreatedAt, obj.UpdatedAt,
+			obj.User.Username,
+		)
 	}
 
 	c.JSON(http.StatusCreated, responses)
 }
 
 // ClearRoomObjects clears all objects in a room
-// @Summary Clear room objects
-// @Tags Canvas
-// @Produce json
-// @Security BearerAuth
-// @Param roomId path string true "Room ID"
-// @Success 204 "No Content"
-// @Failure 403 {object} map[string]string
-// @Router /rooms/{roomId}/objects/clear [post]
 func (h *CanvasHandler) ClearRoomObjects(c *gin.Context) {
-	roomID := c.Param("roomId")
+	roomID := c.Param("id") // Changed from "roomId" to "id"
 	userID := c.GetString("userID")
 
 	if roomID == "" {

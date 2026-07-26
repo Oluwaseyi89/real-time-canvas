@@ -10,9 +10,11 @@ import (
 	"real-time-canvas/real-time-canvas-service/internal/repository/postgres"
 	"real-time-canvas/real-time-canvas-service/internal/services"
 	"real-time-canvas/real-time-canvas-service/internal/websocket"
+	redisPkg "real-time-canvas/real-time-canvas-service/pkg/redis"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"github.com/redis/go-redis/v9"
 )
 
 func main() {
@@ -32,29 +34,31 @@ func main() {
 		gin.SetMode(gin.ReleaseMode)
 	}
 
-	// Initialize database
-	db, err := config.InitPostgres(cfg)
-	if err != nil {
-		log.Fatalf("Failed to connect to database: %v", err)
+	// Initialize database connections
+	if err := cfg.InitDatabase(); err != nil {
+		log.Fatalf("Failed to initialize database: %v", err)
 	}
 
-	// Auto migrate models
-	if err := config.Migrate(db); err != nil {
-		log.Fatalf("Failed to migrate database: %v", err)
+	// Run migrations
+	if err := config.RunMigrations(cfg.DB); err != nil {
+		log.Fatalf("Failed to run migrations: %v", err)
 	}
+	log.Println("Database migrations completed")
 
-	// Initialize Redis
-	_, err = config.InitRedis(cfg)
-	if err != nil {
-		log.Printf("Warning: Failed to connect to Redis: %v", err)
-	} else {
-		log.Println("Redis connected successfully")
+	// Initialize Redis service
+	var redisService *redisPkg.Service
+	if cfg.Redis != nil {
+		if redisClient, ok := cfg.Redis.(*redis.Client); ok {
+			redisService = redisPkg.NewService(redisClient)
+			log.Println("Redis service initialized")
+		}
 	}
+	_ = redisService // Will be used for session management
 
 	// Initialize repositories
-	userRepo := postgres.NewUserRepository(db)
-	roomRepo := postgres.NewRoomRepository(db)
-	canvasRepo := postgres.NewCanvasRepository(db)
+	userRepo := postgres.NewUserRepository(cfg.DB)
+	roomRepo := postgres.NewRoomRepository(cfg.DB)
+	canvasRepo := postgres.NewCanvasRepository(cfg.DB)
 
 	// Initialize services
 	userService := services.NewUserService(userRepo)
