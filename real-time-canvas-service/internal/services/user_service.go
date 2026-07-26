@@ -1,10 +1,12 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"time"
 
 	"real-time-canvas/real-time-canvas-service/internal/models"
+	"real-time-canvas/real-time-canvas-service/internal/models/dto"
 	"real-time-canvas/real-time-canvas-service/internal/repository/postgres"
 
 	"golang.org/x/crypto/bcrypt"
@@ -21,9 +23,11 @@ func NewUserService(userRepo *postgres.UserRepository) *UserService {
 }
 
 // CreateUser creates a new user
-func (s *UserService) CreateUser(req *models.CreateUserRequest) (*models.User, error) {
+func (s *UserService) CreateUser(req *dto.CreateUserRequest) (*models.User, error) {
+	ctx := context.Background()
+
 	// Check if username exists
-	existing, err := s.userRepo.FindByUsername(req.Username)
+	existing, err := s.userRepo.FindByUsername(ctx, req.Username)
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +37,7 @@ func (s *UserService) CreateUser(req *models.CreateUserRequest) (*models.User, e
 
 	// Check if email exists (if provided)
 	if req.Email != "" {
-		existing, err := s.userRepo.FindByEmail(req.Email)
+		existing, err := s.userRepo.FindByEmail(ctx, req.Email)
 		if err != nil {
 			return nil, err
 		}
@@ -46,7 +50,7 @@ func (s *UserService) CreateUser(req *models.CreateUserRequest) (*models.User, e
 		Username: req.Username,
 		Email:    req.Email,
 		IsGuest:  req.IsGuest,
-		LastSeen: time.Now(),
+		LastSeen: time.Now().UTC(),
 	}
 
 	// Hash password if provided
@@ -58,7 +62,7 @@ func (s *UserService) CreateUser(req *models.CreateUserRequest) (*models.User, e
 		user.Password = string(hashedPassword)
 	}
 
-	err = s.userRepo.Create(user)
+	err = s.userRepo.Create(ctx, user)
 	if err != nil {
 		return nil, err
 	}
@@ -67,8 +71,10 @@ func (s *UserService) CreateUser(req *models.CreateUserRequest) (*models.User, e
 }
 
 // LoginUser authenticates a user
-func (s *UserService) LoginUser(req *models.LoginRequest) (*models.User, error) {
-	user, err := s.userRepo.FindByUsername(req.Username)
+func (s *UserService) LoginUser(req *dto.LoginRequest) (*models.User, error) {
+	ctx := context.Background()
+
+	user, err := s.userRepo.FindByUsername(ctx, req.Username)
 	if err != nil {
 		return nil, err
 	}
@@ -92,35 +98,35 @@ func (s *UserService) LoginUser(req *models.LoginRequest) (*models.User, error) 
 	}
 
 	// Update last seen
-	_ = s.userRepo.UpdateLastSeen(user.ID)
+	_ = s.userRepo.UpdateLastSeen(ctx, user.ID)
 
 	return user, nil
 }
 
 // GetUserByID gets a user by ID
 func (s *UserService) GetUserByID(id string) (*models.User, error) {
-	return s.userRepo.FindByID(id)
+	ctx := context.Background()
+	return s.userRepo.FindByID(ctx, id)
 }
 
 // GetUserByUsername gets a user by username
 func (s *UserService) GetUserByUsername(username string) (*models.User, error) {
-	return s.userRepo.FindByUsername(username)
+	ctx := context.Background()
+	return s.userRepo.FindByUsername(ctx, username)
 }
 
 // UpdateLastSeen updates the last seen timestamp
 func (s *UserService) UpdateLastSeen(id string) error {
-	return s.userRepo.UpdateLastSeen(id)
-}
-
-// GetActiveUsers gets active users
-func (s *UserService) GetActiveUsers() ([]models.User, error) {
-	return s.userRepo.GetActiveUsers()
+	ctx := context.Background()
+	return s.userRepo.UpdateLastSeen(ctx, id)
 }
 
 // CreateGuestUser creates a guest user
-func (s *UserService) CreateGuestUser(req *models.GuestLoginRequest) (*models.User, error) {
+func (s *UserService) CreateGuestUser(req *dto.GuestLoginRequest) (*models.User, error) {
+	ctx := context.Background()
+
 	// Check if username exists for non-guest
-	existing, err := s.userRepo.FindByUsername(req.Username)
+	existing, err := s.userRepo.FindByUsername(ctx, req.Username)
 	if err != nil {
 		return nil, err
 	}
@@ -129,13 +135,13 @@ func (s *UserService) CreateGuestUser(req *models.GuestLoginRequest) (*models.Us
 	}
 
 	// Find or create guest
-	user, err := s.userRepo.FindOrCreateGuest(req.Username)
+	user, err := s.userRepo.FindOrCreateGuest(ctx, req.Username)
 	if err != nil {
 		return nil, err
 	}
 
 	// Update last seen
-	_ = s.userRepo.UpdateLastSeen(user.ID)
+	_ = s.userRepo.UpdateLastSeen(ctx, user.ID)
 
 	return user, nil
 }

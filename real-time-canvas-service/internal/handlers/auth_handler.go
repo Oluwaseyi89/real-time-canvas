@@ -3,7 +3,7 @@ package handlers
 import (
 	"net/http"
 
-	"real-time-canvas/real-time-canvas-service/internal/models"
+	"real-time-canvas/real-time-canvas-service/internal/models/dto"
 	"real-time-canvas/real-time-canvas-service/internal/services"
 
 	"github.com/gin-gonic/gin"
@@ -21,7 +21,7 @@ func NewAuthHandler(userService *services.UserService) *AuthHandler {
 
 // Register handles user registration
 func (h *AuthHandler) Register(c *gin.Context) {
-	var req models.CreateUserRequest
+	var req dto.CreateUserRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -33,12 +33,12 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, user.ToResponse())
+	c.JSON(http.StatusCreated, dto.ToUserResponse(user.ID, user.Username, user.IsGuest, user.LastSeen))
 }
 
 // Login handles user login
 func (h *AuthHandler) Login(c *gin.Context) {
-	var req models.LoginRequest
+	var req dto.LoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -50,12 +50,12 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, user.ToResponse())
+	c.JSON(http.StatusOK, dto.ToUserResponse(user.ID, user.Username, user.IsGuest, user.LastSeen))
 }
 
 // GuestLogin handles guest login
 func (h *AuthHandler) GuestLogin(c *gin.Context) {
-	var req models.GuestLoginRequest
+	var req dto.GuestLoginRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -67,7 +67,7 @@ func (h *AuthHandler) GuestLogin(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, user.ToResponse())
+	c.JSON(http.StatusOK, dto.ToUserResponse(user.ID, user.Username, user.IsGuest, user.LastSeen))
 }
 
 // GetProfile gets the current user profile
@@ -88,5 +88,5 @@ func (h *AuthHandler) GetProfile(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, user.ToResponse())
+	c.JSON(http.StatusOK, dto.ToUserResponse(user.ID, user.Username, user.IsGuest, user.LastSeen))
 }

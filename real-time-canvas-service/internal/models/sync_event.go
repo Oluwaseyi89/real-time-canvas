@@ -1,64 +1,34 @@
 package models
 
 import (
-	"encoding/json"
 	"time"
 
-	"github.com/google/uuid"
+	"gorm.io/datatypes"
 	"gorm.io/gorm"
 )
 
 // SyncEvent represents a sync event for real-time updates
 type SyncEvent struct {
-	ID        string          `gorm:"primaryKey;type:uuid" json:"id"`
-	RoomID    string          `gorm:"type:uuid;not null;index" json:"roomId"`
-	UserID    string          `gorm:"type:uuid;not null" json:"userId"`
-	EventType string          `gorm:"not null;index" json:"eventType"`
-	Payload   json.RawMessage `gorm:"type:jsonb" json:"payload"`
-	Version   int             `gorm:"default:1" json:"version"`
-	CreatedAt time.Time       `json:"createdAt"`
-	DeletedAt gorm.DeletedAt  `gorm:"index" json:"-"`
+	ID        string         `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
+	RoomID    string         `gorm:"type:uuid;not null;index:idx_room_events" json:"roomId"`
+	UserID    string         `gorm:"type:uuid;not null" json:"userId"`
+	EventType string         `gorm:"type:varchar(50);not null;index:idx_room_events" json:"eventType"`
+	Payload   datatypes.JSON `gorm:"type:jsonb" json:"payload"`
+	Version   int            `gorm:"default:1" json:"version"`
+	CreatedAt time.Time      `gorm:"not null;default:now()" json:"createdAt"`
+	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
 }
 
-// SyncEventResponse is the sync event sent to clients
-type SyncEventResponse struct {
-	ID        string                 `json:"id"`
-	RoomID    string                 `json:"roomId"`
-	UserID    string                 `json:"userId"`
-	EventType string                 `json:"eventType"`
-	Payload   map[string]interface{} `json:"payload"`
-	Version   int                    `json:"version"`
-	CreatedAt string                 `json:"createdAt"`
+// TableName specifies the table name
+func (SyncEvent) TableName() string {
+	return "sync_events"
 }
 
-// CreateSyncEventRequest represents sync event creation
-type CreateSyncEventRequest struct {
-	EventType string                 `json:"eventType" binding:"required"`
-	Payload   map[string]interface{} `json:"payload"`
-}
-
-// BeforeCreate hook to generate UUID
+// BeforeCreate hook to set timestamp
 func (e *SyncEvent) BeforeCreate(tx *gorm.DB) error {
-	if e.ID == "" {
-		e.ID = uuid.New().String()
+	now := time.Now().UTC()
+	if e.CreatedAt.IsZero() {
+		e.CreatedAt = now
 	}
 	return nil
-}
-
-// ToResponse converts SyncEvent to SyncEventResponse
-func (e *SyncEvent) ToResponse() SyncEventResponse {
-	var payload map[string]interface{}
-	if len(e.Payload) > 0 {
-		_ = json.Unmarshal(e.Payload, &payload)
-	}
-
-	return SyncEventResponse{
-		ID:        e.ID,
-		RoomID:    e.RoomID,
-		UserID:    e.UserID,
-		EventType: e.EventType,
-		Payload:   payload,
-		Version:   e.Version,
-		CreatedAt: e.CreatedAt.Format(time.RFC3339),
-	}
 }

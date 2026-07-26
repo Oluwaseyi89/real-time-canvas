@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -20,14 +21,14 @@ func NewUserRepository(db *gorm.DB) *UserRepository {
 }
 
 // Create creates a new user
-func (r *UserRepository) Create(user *models.User) error {
-	return r.db.Create(user).Error
+func (r *UserRepository) Create(ctx context.Context, user *models.User) error {
+	return r.db.WithContext(ctx).Create(user).Error
 }
 
 // FindByID finds a user by ID
-func (r *UserRepository) FindByID(id string) (*models.User, error) {
+func (r *UserRepository) FindByID(ctx context.Context, id string) (*models.User, error) {
 	var user models.User
-	err := r.db.Where("id = ?", id).First(&user).Error
+	err := r.db.WithContext(ctx).Where("id = ?", id).First(&user).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -35,9 +36,9 @@ func (r *UserRepository) FindByID(id string) (*models.User, error) {
 }
 
 // FindByUsername finds a user by username
-func (r *UserRepository) FindByUsername(username string) (*models.User, error) {
+func (r *UserRepository) FindByUsername(ctx context.Context, username string) (*models.User, error) {
 	var user models.User
-	err := r.db.Where("username = ?", username).First(&user).Error
+	err := r.db.WithContext(ctx).Where("username = ?", username).First(&user).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -45,9 +46,9 @@ func (r *UserRepository) FindByUsername(username string) (*models.User, error) {
 }
 
 // FindByEmail finds a user by email
-func (r *UserRepository) FindByEmail(email string) (*models.User, error) {
+func (r *UserRepository) FindByEmail(ctx context.Context, email string) (*models.User, error) {
 	var user models.User
-	err := r.db.Where("email = ?", email).First(&user).Error
+	err := r.db.WithContext(ctx).Where("email = ?", email).First(&user).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, nil
 	}
@@ -55,32 +56,29 @@ func (r *UserRepository) FindByEmail(email string) (*models.User, error) {
 }
 
 // Update updates a user
-func (r *UserRepository) Update(user *models.User) error {
-	return r.db.Save(user).Error
+func (r *UserRepository) Update(ctx context.Context, user *models.User) error {
+	return r.db.WithContext(ctx).Save(user).Error
 }
 
 // Delete deletes a user
-func (r *UserRepository) Delete(id string) error {
-	return r.db.Delete(&models.User{}, "id = ?", id).Error
+func (r *UserRepository) Delete(ctx context.Context, id string) error {
+	return r.db.WithContext(ctx).Delete(&models.User{}, "id = ?", id).Error
 }
 
 // UpdateLastSeen updates the last seen timestamp
-func (r *UserRepository) UpdateLastSeen(id string) error {
-	return r.db.Model(&models.User{}).Where("id = ?", id).Update("last_seen", time.Now()).Error
-}
-
-// GetActiveUsers returns users active within the last 5 minutes
-func (r *UserRepository) GetActiveUsers() ([]models.User, error) {
-	var users []models.User
-	fiveMinutesAgo := time.Now().Add(-5 * time.Minute)
-	err := r.db.Where("last_seen > ?", fiveMinutesAgo).Find(&users).Error
-	return users, err
+func (r *UserRepository) UpdateLastSeen(ctx context.Context, id string) error {
+	return r.db.WithContext(ctx).
+		Model(&models.User{}).
+		Where("id = ?", id).
+		Update("last_seen", time.Now().UTC()).Error
 }
 
 // FindOrCreateGuest finds or creates a guest user
-func (r *UserRepository) FindOrCreateGuest(username string) (*models.User, error) {
+func (r *UserRepository) FindOrCreateGuest(ctx context.Context, username string) (*models.User, error) {
 	var user models.User
-	err := r.db.Where("username = ? AND is_guest = ?", username, true).First(&user).Error
+	err := r.db.WithContext(ctx).
+		Where("username = ? AND is_guest = ?", username, true).
+		First(&user).Error
 	if err == nil {
 		return &user, nil
 	}
@@ -92,9 +90,9 @@ func (r *UserRepository) FindOrCreateGuest(username string) (*models.User, error
 	user = models.User{
 		Username: username,
 		IsGuest:  true,
-		LastSeen: time.Now(),
+		LastSeen: time.Now().UTC(),
 	}
-	err = r.db.Create(&user).Error
+	err = r.db.WithContext(ctx).Create(&user).Error
 	if err != nil {
 		return nil, err
 	}
@@ -102,8 +100,11 @@ func (r *UserRepository) FindOrCreateGuest(username string) (*models.User, error
 }
 
 // Exists checks if a user exists
-func (r *UserRepository) Exists(id string) (bool, error) {
+func (r *UserRepository) Exists(ctx context.Context, id string) (bool, error) {
 	var count int64
-	err := r.db.Model(&models.User{}).Where("id = ?", id).Count(&count).Error
+	err := r.db.WithContext(ctx).
+		Model(&models.User{}).
+		Where("id = ?", id).
+		Count(&count).Error
 	return count > 0, err
 }

@@ -1,10 +1,12 @@
 package services
 
 import (
+	"context"
 	"errors"
 	"time"
 
 	"real-time-canvas/real-time-canvas-service/internal/models"
+	"real-time-canvas/real-time-canvas-service/internal/models/dto"
 	"real-time-canvas/real-time-canvas-service/internal/repository/postgres"
 )
 
@@ -29,9 +31,11 @@ func NewRoomService(
 }
 
 // CreateRoom creates a new room
-func (s *RoomService) CreateRoom(userID string, req *models.CreateRoomRequest) (*models.Room, error) {
+func (s *RoomService) CreateRoom(userID string, req *dto.CreateRoomRequest) (*models.Room, error) {
+	ctx := context.Background()
+
 	// Check if user exists
-	exists, err := s.userRepo.Exists(userID)
+	exists, err := s.userRepo.Exists(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +48,7 @@ func (s *RoomService) CreateRoom(userID string, req *models.CreateRoomRequest) (
 		OwnerID:    userID,
 		IsPrivate:  req.IsPrivate,
 		MaxUsers:   req.MaxUsers,
-		LastActive: time.Now(),
+		LastActive: time.Now().UTC(),
 	}
 
 	// Set default max users
@@ -52,33 +56,37 @@ func (s *RoomService) CreateRoom(userID string, req *models.CreateRoomRequest) (
 		room.MaxUsers = 50
 	}
 
-	err = s.roomRepo.Create(room)
+	err = s.roomRepo.Create(ctx, room)
 	if err != nil {
 		return nil, err
 	}
 
 	// Add owner to room
-	err = s.roomRepo.AddUser(room.ID, userID, "owner")
+	err = s.roomRepo.AddUser(ctx, room.ID, userID, "owner")
 	if err != nil {
 		return nil, err
 	}
 
-	return s.roomRepo.FindByID(room.ID)
+	return s.roomRepo.FindByID(ctx, room.ID)
 }
 
 // GetRoomByID gets a room by ID
 func (s *RoomService) GetRoomByID(roomID string) (*models.Room, error) {
-	return s.roomRepo.FindByID(roomID)
+	ctx := context.Background()
+	return s.roomRepo.FindByID(ctx, roomID)
 }
 
 // GetRoomByInviteCode gets a room by invite code
 func (s *RoomService) GetRoomByInviteCode(code string) (*models.Room, error) {
-	return s.roomRepo.FindByInviteCode(code)
+	ctx := context.Background()
+	return s.roomRepo.FindByInviteCode(ctx, code)
 }
 
 // GetUserRooms gets all rooms for a user
 func (s *RoomService) GetUserRooms(userID string) ([]models.Room, error) {
-	exists, err := s.userRepo.Exists(userID)
+	ctx := context.Background()
+
+	exists, err := s.userRepo.Exists(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -86,13 +94,16 @@ func (s *RoomService) GetUserRooms(userID string) ([]models.Room, error) {
 		return nil, errors.New("user not found")
 	}
 
-	return s.roomRepo.FindByUserID(userID)
+	rooms, _, err := s.roomRepo.FindByUserID(ctx, userID, 100, 0)
+	return rooms, err
 }
 
 // UpdateRoom updates a room
-func (s *RoomService) UpdateRoom(roomID, userID string, req *models.UpdateRoomRequest) (*models.Room, error) {
+func (s *RoomService) UpdateRoom(roomID, userID string, req *dto.UpdateRoomRequest) (*models.Room, error) {
+	ctx := context.Background()
+
 	// Check if user is room owner
-	role, err := s.roomRepo.GetUserRole(roomID, userID)
+	role, err := s.roomRepo.GetUserRole(ctx, roomID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -100,7 +111,7 @@ func (s *RoomService) UpdateRoom(roomID, userID string, req *models.UpdateRoomRe
 		return nil, errors.New("only room owner can update room")
 	}
 
-	room, err := s.roomRepo.FindByID(roomID)
+	room, err := s.roomRepo.FindByID(ctx, roomID)
 	if err != nil {
 		return nil, err
 	}
@@ -115,18 +126,20 @@ func (s *RoomService) UpdateRoom(roomID, userID string, req *models.UpdateRoomRe
 		room.MaxUsers = req.MaxUsers
 	}
 
-	err = s.roomRepo.Update(room)
+	err = s.roomRepo.Update(ctx, room)
 	if err != nil {
 		return nil, err
 	}
 
-	return s.roomRepo.FindByID(roomID)
+	return s.roomRepo.FindByID(ctx, roomID)
 }
 
 // DeleteRoom deletes a room
 func (s *RoomService) DeleteRoom(roomID, userID string) error {
+	ctx := context.Background()
+
 	// Check if user is room owner
-	role, err := s.roomRepo.GetUserRole(roomID, userID)
+	role, err := s.roomRepo.GetUserRole(ctx, roomID, userID)
 	if err != nil {
 		return err
 	}
@@ -135,19 +148,21 @@ func (s *RoomService) DeleteRoom(roomID, userID string) error {
 	}
 
 	// Delete all objects in room
-	err = s.canvasRepo.DeleteByRoomID(roomID)
+	err = s.canvasRepo.DeleteByRoomID(ctx, roomID)
 	if err != nil {
 		return err
 	}
 
 	// Delete room
-	return s.roomRepo.Delete(roomID)
+	return s.roomRepo.Delete(ctx, roomID)
 }
 
 // JoinRoom adds a user to a room
 func (s *RoomService) JoinRoom(roomID, userID, inviteCode string) (*models.Room, error) {
+	ctx := context.Background()
+
 	// Check if user exists
-	exists, err := s.userRepo.Exists(userID)
+	exists, err := s.userRepo.Exists(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -156,16 +171,16 @@ func (s *RoomService) JoinRoom(roomID, userID, inviteCode string) (*models.Room,
 	}
 
 	// Check if already in room
-	inRoom, err := s.roomRepo.IsUserInRoom(roomID, userID)
+	inRoom, err := s.roomRepo.IsUserInRoom(ctx, roomID, userID)
 	if err != nil {
 		return nil, err
 	}
 	if inRoom {
-		return s.roomRepo.FindByID(roomID)
+		return s.roomRepo.FindByID(ctx, roomID)
 	}
 
 	// Get room
-	room, err := s.roomRepo.FindByID(roomID)
+	room, err := s.roomRepo.FindByID(ctx, roomID)
 	if err != nil {
 		return nil, err
 	}
@@ -189,18 +204,20 @@ func (s *RoomService) JoinRoom(roomID, userID, inviteCode string) (*models.Room,
 	}
 
 	// Add user to room
-	err = s.roomRepo.AddUser(roomID, userID, "editor")
+	err = s.roomRepo.AddUser(ctx, roomID, userID, "editor")
 	if err != nil {
 		return nil, err
 	}
 
-	return s.roomRepo.FindByID(roomID)
+	return s.roomRepo.FindByID(ctx, roomID)
 }
 
 // LeaveRoom removes a user from a room
 func (s *RoomService) LeaveRoom(roomID, userID string) error {
+	ctx := context.Background()
+
 	// Check if user is in room
-	inRoom, err := s.roomRepo.IsUserInRoom(roomID, userID)
+	inRoom, err := s.roomRepo.IsUserInRoom(ctx, roomID, userID)
 	if err != nil {
 		return err
 	}
@@ -209,7 +226,7 @@ func (s *RoomService) LeaveRoom(roomID, userID string) error {
 	}
 
 	// Check if user is owner
-	role, err := s.roomRepo.GetUserRole(roomID, userID)
+	role, err := s.roomRepo.GetUserRole(ctx, roomID, userID)
 	if err != nil {
 		return err
 	}
@@ -217,15 +234,11 @@ func (s *RoomService) LeaveRoom(roomID, userID string) error {
 		return errors.New("room owner cannot leave, delete room instead")
 	}
 
-	return s.roomRepo.RemoveUser(roomID, userID)
+	return s.roomRepo.RemoveUser(ctx, roomID, userID)
 }
 
 // GetRoomUsers gets all users in a room
 func (s *RoomService) GetRoomUsers(roomID string) ([]models.RoomUser, error) {
-	return s.roomRepo.GetRoomUsers(roomID)
-}
-
-// UpdateLastActive updates the last active timestamp
-func (s *RoomService) UpdateLastActive(roomID string) error {
-	return s.roomRepo.UpdateLastActive(roomID)
+	ctx := context.Background()
+	return s.roomRepo.GetRoomUsers(ctx, roomID)
 }

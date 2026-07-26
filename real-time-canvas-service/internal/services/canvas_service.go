@@ -1,9 +1,12 @@
 package services
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
+
 	"real-time-canvas/real-time-canvas-service/internal/models"
+	"real-time-canvas/real-time-canvas-service/internal/models/dto"
 	"real-time-canvas/real-time-canvas-service/internal/repository/postgres"
 )
 
@@ -28,9 +31,11 @@ func NewCanvasService(
 }
 
 // CreateObject creates a new canvas object
-func (s *CanvasService) CreateObject(userID, roomID string, req *models.CreateObjectRequest) (*models.CanvasObject, error) {
+func (s *CanvasService) CreateObject(userID, roomID string, req *dto.CreateObjectRequest) (*models.CanvasObject, error) {
+	ctx := context.Background()
+
 	// Check if user exists
-	exists, err := s.userRepo.Exists(userID)
+	exists, err := s.userRepo.Exists(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -39,7 +44,7 @@ func (s *CanvasService) CreateObject(userID, roomID string, req *models.CreateOb
 	}
 
 	// Check if user is in room
-	inRoom, err := s.roomRepo.IsUserInRoom(roomID, userID)
+	inRoom, err := s.roomRepo.IsUserInRoom(ctx, roomID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +53,7 @@ func (s *CanvasService) CreateObject(userID, roomID string, req *models.CreateOb
 	}
 
 	// Get max z-index
-	maxZIndex, err := s.canvasRepo.GetZIndexMax(roomID)
+	maxZIndex, err := s.canvasRepo.GetZIndexMax(ctx, roomID)
 	if err != nil {
 		return nil, err
 	}
@@ -72,35 +77,40 @@ func (s *CanvasService) CreateObject(userID, roomID string, req *models.CreateOb
 		ZIndex:     maxZIndex + 1,
 	}
 
-	err = s.canvasRepo.Create(obj)
+	err = s.canvasRepo.Create(ctx, obj)
 	if err != nil {
 		return nil, err
 	}
 
 	// Increment object count
-	_ = s.roomRepo.IncrementObjectCount(roomID, 1)
+	_ = s.roomRepo.IncrementObjectCount(ctx, roomID, 1)
 
-	return s.canvasRepo.FindByID(obj.ID)
+	return s.canvasRepo.FindByID(ctx, obj.ID)
 }
 
 // GetObjectByID gets a canvas object by ID
 func (s *CanvasService) GetObjectByID(id string) (*models.CanvasObject, error) {
-	return s.canvasRepo.FindByID(id)
+	ctx := context.Background()
+	return s.canvasRepo.FindByID(ctx, id)
 }
 
 // GetRoomObjects gets all objects in a room
 func (s *CanvasService) GetRoomObjects(roomID string) ([]models.CanvasObject, error) {
-	return s.canvasRepo.FindByRoomID(roomID)
+	ctx := context.Background()
+	return s.canvasRepo.FindByRoomID(ctx, roomID)
 }
 
 // GetRoomObjectsByType gets objects in a room by type
 func (s *CanvasService) GetRoomObjectsByType(roomID, objectType string) ([]models.CanvasObject, error) {
-	return s.canvasRepo.FindByRoomIDAndType(roomID, objectType)
+	ctx := context.Background()
+	return s.canvasRepo.FindByRoomIDAndType(ctx, roomID, objectType)
 }
 
 // UpdateObject updates a canvas object
-func (s *CanvasService) UpdateObject(objectID, userID string, req *models.UpdateObjectRequest) (*models.CanvasObject, error) {
-	obj, err := s.canvasRepo.FindByID(objectID)
+func (s *CanvasService) UpdateObject(objectID, userID string, req *dto.UpdateObjectRequest) (*models.CanvasObject, error) {
+	ctx := context.Background()
+
+	obj, err := s.canvasRepo.FindByID(ctx, objectID)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +119,7 @@ func (s *CanvasService) UpdateObject(objectID, userID string, req *models.Update
 	}
 
 	// Check if user is in room
-	inRoom, err := s.roomRepo.IsUserInRoom(obj.RoomID, userID)
+	inRoom, err := s.roomRepo.IsUserInRoom(ctx, obj.RoomID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -144,17 +154,19 @@ func (s *CanvasService) UpdateObject(objectID, userID string, req *models.Update
 		obj.ZIndex = *req.ZIndex
 	}
 
-	err = s.canvasRepo.Update(obj)
+	err = s.canvasRepo.Update(ctx, obj)
 	if err != nil {
 		return nil, err
 	}
 
-	return s.canvasRepo.FindByID(objectID)
+	return s.canvasRepo.FindByID(ctx, objectID)
 }
 
 // DeleteObject deletes a canvas object
 func (s *CanvasService) DeleteObject(objectID, userID string) error {
-	obj, err := s.canvasRepo.FindByID(objectID)
+	ctx := context.Background()
+
+	obj, err := s.canvasRepo.FindByID(ctx, objectID)
 	if err != nil {
 		return err
 	}
@@ -163,7 +175,7 @@ func (s *CanvasService) DeleteObject(objectID, userID string) error {
 	}
 
 	// Check if user is in room
-	inRoom, err := s.roomRepo.IsUserInRoom(obj.RoomID, userID)
+	inRoom, err := s.roomRepo.IsUserInRoom(ctx, obj.RoomID, userID)
 	if err != nil {
 		return err
 	}
@@ -171,21 +183,23 @@ func (s *CanvasService) DeleteObject(objectID, userID string) error {
 		return errors.New("user is not in room")
 	}
 
-	err = s.canvasRepo.Delete(objectID)
+	err = s.canvasRepo.Delete(ctx, objectID)
 	if err != nil {
 		return err
 	}
 
 	// Decrement object count
-	_ = s.roomRepo.IncrementObjectCount(obj.RoomID, -1)
+	_ = s.roomRepo.IncrementObjectCount(ctx, obj.RoomID, -1)
 
 	return nil
 }
 
 // BatchCreateObjects creates multiple canvas objects
-func (s *CanvasService) BatchCreateObjects(userID, roomID string, req *models.BatchCreateObjectsRequest) ([]models.CanvasObject, error) {
+func (s *CanvasService) BatchCreateObjects(userID, roomID string, req *dto.BatchCreateObjectsRequest) ([]models.CanvasObject, error) {
+	ctx := context.Background()
+
 	// Check if user exists
-	exists, err := s.userRepo.Exists(userID)
+	exists, err := s.userRepo.Exists(ctx, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -194,7 +208,7 @@ func (s *CanvasService) BatchCreateObjects(userID, roomID string, req *models.Ba
 	}
 
 	// Check if user is in room
-	inRoom, err := s.roomRepo.IsUserInRoom(roomID, userID)
+	inRoom, err := s.roomRepo.IsUserInRoom(ctx, roomID, userID)
 	if err != nil {
 		return nil, err
 	}
@@ -203,7 +217,7 @@ func (s *CanvasService) BatchCreateObjects(userID, roomID string, req *models.Ba
 	}
 
 	// Get max z-index
-	maxZIndex, err := s.canvasRepo.GetZIndexMax(roomID)
+	maxZIndex, err := s.canvasRepo.GetZIndexMax(ctx, roomID)
 	if err != nil {
 		return nil, err
 	}
@@ -230,21 +244,23 @@ func (s *CanvasService) BatchCreateObjects(userID, roomID string, req *models.Ba
 		objects = append(objects, obj)
 	}
 
-	err = s.canvasRepo.BatchCreate(objects)
+	err = s.canvasRepo.BatchCreate(ctx, objects)
 	if err != nil {
 		return nil, err
 	}
 
 	// Increment object count
-	_ = s.roomRepo.IncrementObjectCount(roomID, len(objects))
+	_ = s.roomRepo.IncrementObjectCount(ctx, roomID, len(objects))
 
-	return s.canvasRepo.FindByRoomID(roomID)
+	return s.canvasRepo.FindByRoomID(ctx, roomID)
 }
 
 // ClearRoomObjects deletes all objects in a room
 func (s *CanvasService) ClearRoomObjects(roomID, userID string) error {
+	ctx := context.Background()
+
 	// Check if user is in room
-	inRoom, err := s.roomRepo.IsUserInRoom(roomID, userID)
+	inRoom, err := s.roomRepo.IsUserInRoom(ctx, roomID, userID)
 	if err != nil {
 		return err
 	}
@@ -252,10 +268,11 @@ func (s *CanvasService) ClearRoomObjects(roomID, userID string) error {
 		return errors.New("user is not in room")
 	}
 
-	return s.canvasRepo.DeleteByRoomID(roomID)
+	return s.canvasRepo.DeleteByRoomID(ctx, roomID)
 }
 
 // GetObjectCount gets the count of objects in a room
 func (s *CanvasService) GetObjectCount(roomID string) (int64, error) {
-	return s.canvasRepo.GetCountByRoomID(roomID)
+	ctx := context.Background()
+	return s.canvasRepo.GetCountByRoomID(ctx, roomID)
 }

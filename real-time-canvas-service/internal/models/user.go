@@ -3,67 +3,48 @@ package models
 import (
 	"time"
 
-	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
 // User represents a user in the system
 type User struct {
-	ID        string         `gorm:"primaryKey;type:uuid" json:"id"`
-	Username  string         `gorm:"uniqueIndex;not null" json:"username"`
-	Email     string         `gorm:"uniqueIndex" json:"email,omitempty"`
-	Password  string         `json:"-"` // Hashed password
+	ID        string         `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
+	Username  string         `gorm:"uniqueIndex;type:varchar(50);not null" json:"username"`
+	Email     string         `gorm:"uniqueIndex;type:varchar(255)" json:"email,omitempty"`
+	Password  string         `gorm:"type:varchar(255)" json:"-"`
 	IsGuest   bool           `gorm:"default:true" json:"isGuest"`
-	LastSeen  time.Time      `json:"lastSeen"`
-	CreatedAt time.Time      `json:"createdAt"`
-	UpdatedAt time.Time      `json:"updatedAt"`
+	LastSeen  time.Time      `gorm:"not null;default:now()" json:"lastSeen"`
+	CreatedAt time.Time      `gorm:"not null;default:now()" json:"createdAt"`
+	UpdatedAt time.Time      `gorm:"not null;default:now()" json:"updatedAt"`
 	DeletedAt gorm.DeletedAt `gorm:"index" json:"-"`
+
+	// Relationships
+	Rooms   []RoomUser     `gorm:"foreignKey:UserID" json:"-"`
+	Objects []CanvasObject `gorm:"foreignKey:UserID" json:"-"`
 }
 
-// UserResponse is the user data sent to clients
-type UserResponse struct {
-	ID       string `json:"id"`
-	Username string `json:"username"`
-	IsGuest  bool   `json:"isGuest"`
-	LastSeen string `json:"lastSeen,omitempty"`
+// TableName specifies the table name
+func (User) TableName() string {
+	return "users"
 }
 
-// ToResponse converts User to UserResponse
-func (u *User) ToResponse() UserResponse {
-	return UserResponse{
-		ID:       u.ID,
-		Username: u.Username,
-		IsGuest:  u.IsGuest,
-		LastSeen: u.LastSeen.Format(time.RFC3339),
-	}
-}
-
-// CreateUserRequest represents user creation request
-type CreateUserRequest struct {
-	Username string `json:"username" binding:"required,min=3,max=50"`
-	Email    string `json:"email" binding:"omitempty,email"`
-	Password string `json:"password" binding:"omitempty,min=6"`
-	IsGuest  bool   `json:"isGuest"`
-}
-
-// LoginRequest represents login request
-type LoginRequest struct {
-	Username string `json:"username" binding:"required"`
-	Password string `json:"password"`
-}
-
-// GuestLoginRequest represents guest login request
-type GuestLoginRequest struct {
-	Username string `json:"username" binding:"required,min=3,max=50"`
-}
-
-// BeforeCreate hook to generate UUID
+// BeforeCreate hook to set timestamps
 func (u *User) BeforeCreate(tx *gorm.DB) error {
-	if u.ID == "" {
-		u.ID = uuid.New().String()
+	now := time.Now().UTC()
+	if u.CreatedAt.IsZero() {
+		u.CreatedAt = now
+	}
+	if u.UpdatedAt.IsZero() {
+		u.UpdatedAt = now
 	}
 	if u.LastSeen.IsZero() {
-		u.LastSeen = time.Now()
+		u.LastSeen = now
 	}
+	return nil
+}
+
+// BeforeUpdate hook to update timestamp
+func (u *User) BeforeUpdate(tx *gorm.DB) error {
+	u.UpdatedAt = time.Now().UTC()
 	return nil
 }
