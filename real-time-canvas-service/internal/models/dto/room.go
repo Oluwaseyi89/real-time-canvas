@@ -44,17 +44,22 @@ type UpdateRoomRequest struct {
 func ToRoomResponse(
 	id, name, ownerID string,
 	isPrivate bool,
-	inviteCode string,
+	inviteCode *string,
 	maxUsers, objectCount, userCount int,
 	lastActive, createdAt, updatedAt time.Time,
 	users []UserResponse,
 ) RoomResponse {
+	inviteCodeStr := ""
+	if inviteCode != nil {
+		inviteCodeStr = *inviteCode
+	}
+
 	return RoomResponse{
 		ID:          id,
 		Name:        name,
 		OwnerID:     ownerID,
 		IsPrivate:   isPrivate,
-		InviteCode:  inviteCode,
+		InviteCode:  inviteCodeStr,
 		MaxUsers:    maxUsers,
 		ObjectCount: objectCount,
 		UserCount:   userCount,

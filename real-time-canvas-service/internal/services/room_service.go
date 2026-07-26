@@ -56,6 +56,11 @@ func (s *RoomService) CreateRoom(userID string, req *dto.CreateRoomRequest) (*mo
 		room.MaxUsers = 50
 	}
 
+	// For non-private rooms, invite_code should be nil
+	if !req.IsPrivate {
+		room.InviteCode = nil
+	}
+
 	err = s.roomRepo.Create(ctx, room)
 	if err != nil {
 		return nil, err
@@ -193,7 +198,7 @@ func (s *RoomService) JoinRoom(roomID, userID, inviteCode string) (*models.Room,
 		if inviteCode == "" {
 			return nil, errors.New("invite code required for private room")
 		}
-		if room.InviteCode != inviteCode {
+		if room.InviteCode == nil || *room.InviteCode != inviteCode {
 			return nil, errors.New("invalid invite code")
 		}
 	}

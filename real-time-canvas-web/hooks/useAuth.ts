@@ -1,12 +1,10 @@
 /**
  * Authentication hook for managing user auth state
- * Handles guest mode, username management, and session persistence
  */
 
 import { useState, useCallback, useEffect } from 'react'
-import { useRoomStore } from '@/store/roomStore'
+import { useAuthStore } from '@/store/authStore'
 import { apiClient } from '@/lib/api/client'
-import { nanoid } from 'nanoid'
 
 interface UseAuthOptions {
   onLogin?: (username: string, isGuest: boolean) => void
@@ -21,18 +19,15 @@ export function useAuth(options: UseAuthOptions = {}) {
     username,
     guestMode,
     setAuth,
-    clearAuth,
+    logout: storeLogout,
     isLoading,
     setLoading,
     setError,
     error,
-  } = useRoomStore()
+  } = useAuthStore()
 
   const [isLoggingIn, setIsLoggingIn] = useState(false)
 
-  /**
-   * Login as guest with username
-   */
   const loginAsGuest = useCallback(
     async (usernameInput: string) => {
       if (!usernameInput.trim()) {
@@ -45,22 +40,18 @@ export function useAuth(options: UseAuthOptions = {}) {
       setError(null)
 
       try {
-        // Call backend guest login
         const response = await apiClient.guestLogin({ username: usernameInput.trim() })
         
         if (response.data) {
           const user = response.data
           
-          // Store in localStorage
           localStorage.setItem('userId', user.id)
           localStorage.setItem('username', user.username)
           localStorage.setItem('authToken', `token-${user.id}`)
           
-          // Store in session storage as fallback
           sessionStorage.setItem('guestId', user.id)
           sessionStorage.setItem('username', user.username)
 
-          // Update auth state
           setAuth({
             isAuthenticated: true,
             userId: user.id,
@@ -84,9 +75,6 @@ export function useAuth(options: UseAuthOptions = {}) {
     [setAuth, setError, setLoading, onLogin]
   )
 
-  /**
-   * Login with username and password
-   */
   const login = useCallback(
     async (usernameInput: string, password: string) => {
       if (!usernameInput.trim()) {
@@ -131,9 +119,6 @@ export function useAuth(options: UseAuthOptions = {}) {
     [setAuth, setError, setLoading, onLogin]
   )
 
-  /**
-   * Register a new user
-   */
   const register = useCallback(
     async (usernameInput: string, email: string, password: string) => {
       if (!usernameInput.trim()) {
@@ -183,31 +168,17 @@ export function useAuth(options: UseAuthOptions = {}) {
     [setAuth, setError, setLoading, onLogin]
   )
 
-  /**
-   * Logout user
-   */
   const logout = useCallback(() => {
-    try {
-      // Clear all storage
-      localStorage.removeItem('guestId')
-      localStorage.removeItem('username')
-      localStorage.removeItem('userId')
-      localStorage.removeItem('authToken')
-      sessionStorage.removeItem('guestId')
-      sessionStorage.removeItem('username')
-      sessionStorage.removeItem('currentRoomId')
-
-      // Clear auth state
-      clearAuth()
-      onLogout?.()
-    } catch (error) {
-      console.error('[useAuth] Logout error:', error)
+    // Call the store logout which clears everything
+    storeLogout()
+    onLogout?.()
+    
+    // Force reload to reset all state
+    if (typeof window !== 'undefined') {
+      window.location.href = '/'
     }
-  }, [clearAuth, onLogout])
+  }, [storeLogout, onLogout])
 
-  /**
-   * Check if user is authenticated via backend
-   */
   const checkAuth = useCallback(async () => {
     try {
       const token = localStorage.getItem('authToken')
@@ -215,7 +186,6 @@ export function useAuth(options: UseAuthOptions = {}) {
         return false
       }
 
-      // Verify with backend
       const response = await apiClient.getProfile()
       if (response.data) {
         const user = response.data
@@ -229,7 +199,6 @@ export function useAuth(options: UseAuthOptions = {}) {
       }
       return false
     } catch (error) {
-      // If backend fails, fallback to local session
       const storedUsername = sessionStorage.getItem('username')
       const storedGuestId = sessionStorage.getItem('guestId')
 
@@ -248,9 +217,6 @@ export function useAuth(options: UseAuthOptions = {}) {
     }
   }, [isAuthenticated, setAuth])
 
-  /**
-   * Auto-login on mount if session exists
-   */
   useEffect(() => {
     if (!isAuthenticated) {
       checkAuth()

@@ -13,7 +13,7 @@ type Room struct {
 	Name        string         `gorm:"type:varchar(100);not null" json:"name"`
 	OwnerID     string         `gorm:"type:uuid;not null;index" json:"ownerId"`
 	IsPrivate   bool           `gorm:"default:false" json:"isPrivate"`
-	InviteCode  string         `gorm:"type:varchar(20);uniqueIndex" json:"inviteCode,omitempty"`
+	InviteCode  *string        `gorm:"type:varchar(20);uniqueIndex" json:"inviteCode,omitempty"` // Use pointer for nullable
 	MaxUsers    int            `gorm:"default:50" json:"maxUsers"`
 	ObjectCount int            `gorm:"default:0" json:"objectCount"`
 	LastActive  time.Time      `gorm:"not null;default:now()" json:"lastActive"`
@@ -44,8 +44,9 @@ func (r *Room) BeforeCreate(tx *gorm.DB) error {
 	if r.LastActive.IsZero() {
 		r.LastActive = now
 	}
-	if r.InviteCode == "" && r.IsPrivate {
-		r.InviteCode = generateInviteCode()
+	if r.IsPrivate && (r.InviteCode == nil || *r.InviteCode == "") {
+		code := generateInviteCode()
+		r.InviteCode = &code
 	}
 	return nil
 }
