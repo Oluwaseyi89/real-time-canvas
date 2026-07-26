@@ -1,8 +1,8 @@
 'use client'
 
 /**
- * Room join dialog component
- * Allows users to join a room using room ID or invite link
+ * Room Join Dialog Component
+ * Enables users to join an active room via room ID, invite code, or full invite link URL.
  */
 
 import { useState, useCallback, useEffect } from 'react'
@@ -23,26 +23,80 @@ export function JoinRoomDialog({
   initialInviteCode = '',
   onSuccess,
 }: JoinRoomDialogProps) {
-  const [roomId, setRoomId] = useState(initialRoomId)
+  const [roomIdInput, setRoomIdInput] = useState(initialRoomId)
   const [inviteCode, setInviteCode] = useState(initialInviteCode)
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const { joinRoom } = useRoom()
 
-  // Parse invite link when it changes
+  const handleClose = useCallback(() => {
+    setRoomIdInput('')
+    setInviteCode('')
+    setError(null)
+    setIsLoading(false)
+    onClose()
+  }, [onClose])
+
+  // Support ESC key to close modal
   useEffect(() => {
-    if (initialRoomId) {
-      setRoomId(initialRoomId)
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen && !isLoading) {
+        handleClose()
+      }
     }
-    if (initialInviteCode) {
-      setInviteCode(initialInviteCode)
-    }
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [isOpen, isLoading, handleClose])
+
+  // Process incoming initial props
+  useEffect(() => {
+    if (initialRoomId) setRoomIdInput(initialRoomId)
+    if (initialInviteCode) setInviteCode(initialInviteCode)
   }, [initialRoomId, initialInviteCode])
 
+  /**
+   * Helper function to extract room ID and optional query parameters (like code=xyz)
+   * from full canvas URLs or plain text strings.
+   */
+  const processInputString = useCallback((rawText: string) => {
+    const trimmed = rawText.trim()
+    if (!trimmed) return
+
+    try {
+      if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+        const parsedUrl = new URL(trimmed)
+        const pathSegments = parsedUrl.pathname.split('/').filter(Boolean)
+        const roomIdx = pathSegments.indexOf('room')
+        
+        if (roomIdx !== -1 && pathSegments[roomIdx + 1]) {
+          setRoomIdInput(pathSegments[roomIdx + 1])
+        } else if (pathSegments.length > 0) {
+          setRoomIdInput(pathSegments[pathSegments.length - 1])
+        }
+
+        const queryCode = parsedUrl.searchParams.get('code') || parsedUrl.searchParams.get('invite')
+        if (queryCode) {
+          setInviteCode(queryCode)
+        }
+        return
+      }
+    } catch {
+      // Fallthrough to regular string handling
+    }
+
+    // Direct room ID string or path snippet
+    const urlMatch = trimmed.match(/\/room\/([a-zA-Z0-9_-]+)/)
+    if (urlMatch) {
+      setRoomIdInput(urlMatch[1])
+    } else {
+      setRoomIdInput(trimmed)
+    }
+  }, [])
+
   const handleJoin = useCallback(async () => {
-    const roomIdToJoin = roomId.trim() || initialRoomId
-    if (!roomIdToJoin) {
-      setError('Please enter a room ID or invite link')
+    const targetRoomId = roomIdInput.trim()
+    if (!targetRoomId) {
+      setError('Please enter a valid room ID or paste an invite link')
       return
     }
 
@@ -50,7 +104,7 @@ export function JoinRoomDialog({
     setError(null)
 
     try {
-      const room = await joinRoom(roomIdToJoin, inviteCode.trim() || undefined)
+      const room = await joinRoom(targetRoomId, inviteCode.trim() || undefined)
       if (room) {
         onSuccess?.(room.id)
         handleClose()
@@ -61,101 +115,130 @@ export function JoinRoomDialog({
     } finally {
       setIsLoading(false)
     }
-  }, [roomId, inviteCode, initialRoomId, joinRoom, onSuccess])
+  }, [roomIdInput, inviteCode, joinRoom, onSuccess, handleClose])
 
-  const handleClose = useCallback(() => {
-    setRoomId('')
-    setInviteCode('')
-    setError(null)
-    setIsLoading(false)
-    onClose()
-  }, [onClose])
-
-  // Handle paste from clipboard
+  // Handle instant clipboard paste
   const handlePaste = useCallback(async () => {
     try {
       const text = await navigator.clipboard.readText()
-      // Extract room ID from URL if present
-      const urlMatch = text.match(/\/room\/([a-zA-Z0-9_-]+)/)
-      if (urlMatch) {
-        setRoomId(urlMatch[1])
-      } else if (text.length > 0 && text.length < 50) {
-        setRoomId(text.trim())
+      if (text) {
+        processInputString(text)
       }
-    } catch (error) {
-      // Silently fail if clipboard access is denied
+    } catch {
+      // Clipboard access denied or unavailable
     }
-  }, [])
+  }, [processInputString])
 
   if (!isOpen) return null
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-in fade-in zoom-in duration-200">
-        <div className="flex justify-between items-center mb-4">
-          <h2 className="text-2xl font-bold text-gray-800">Join Room</h2>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-in fade-in duration-200">
+      <div className="bg-slate-950/95 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-md p-6 text-slate-100 backdrop-blur-xl">
+        {/* Header */}
+        <div className="flex justify-between items-center pb-4 border-b border-slate-800/80 mb-5">
+          <div className="flex items-center gap-2">
+            <span className="text-xl">🚪</span>
+            <h2 className="text-lg font-bold tracking-wide text-slate-100">
+              Join Canvas Room
+            </h2>
+          </div>
           <button
             onClick={handleClose}
-            className="text-gray-400 hover:text-gray-600 transition-colors"
+            disabled={isLoading}
+            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 transition-colors disabled:opacity-50"
+            aria-label="Close dialog"
           >
-            <span className="text-2xl">×</span>
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
           </button>
         </div>
 
-        <div className="space-y-4">
+        {/* Form Container */}
+        <form
+          onSubmit={(e) => {
+            e.preventDefault()
+            handleJoin()
+          }}
+          className="space-y-4 text-xs"
+        >
+          {/* Room ID or Invite Link Input */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-1">
+            <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-400 mb-1.5">
               Room ID or Invite Link
             </label>
             <div className="flex gap-2">
               <input
                 type="text"
-                value={roomId}
-                onChange={(e) => setRoomId(e.target.value)}
-                placeholder="Paste room ID or link"
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-                onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
+                value={roomIdInput}
+                onChange={(e) => processInputString(e.target.value)}
+                placeholder="Paste room URL or enter Room ID"
+                disabled={isLoading}
+                className="flex-1 bg-slate-900/80 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 text-xs outline-none focus:border-indigo-500/80 focus:ring-1 focus:ring-indigo-500/50 transition-all placeholder:text-slate-600 font-medium"
                 autoFocus
               />
               <button
+                type="button"
                 onClick={handlePaste}
-                className="px-3 py-2 bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors text-gray-600"
-                title="Paste from clipboard"
+                disabled={isLoading}
+                className="px-3 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 hover:border-slate-700 text-slate-300 rounded-xl transition-colors font-medium flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                title="Paste link from clipboard"
               >
-                📋
+                <span>📋</span>
+                <span className="text-[11px]">Paste</span>
               </button>
             </div>
           </div>
 
-          {inviteCode && (
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Invite Code (optional)
-              </label>
-              <input
-                type="text"
-                value={inviteCode}
-                onChange={(e) => setInviteCode(e.target.value)}
-                placeholder="Enter invite code"
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none"
-              />
-            </div>
-          )}
+          {/* Optional Invite Code Field */}
+          <div>
+            <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-400 mb-1.5">
+              Invite Code <span className="text-slate-600">(optional)</span>
+            </label>
+            <input
+              type="text"
+              value={inviteCode}
+              onChange={(e) => setInviteCode(e.target.value)}
+              placeholder="e.g., SECRET-123"
+              disabled={isLoading}
+              className="w-full bg-slate-900/80 border border-slate-800 rounded-xl px-3.5 py-2.5 text-slate-100 text-xs outline-none focus:border-indigo-500/80 focus:ring-1 focus:ring-indigo-500/50 transition-all placeholder:text-slate-600 font-mono tracking-wider"
+            />
+          </div>
 
+          {/* Error Message Alert */}
           {error && (
-            <div className="p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-600">
-              {error}
+            <div className="p-3 bg-rose-950/60 border border-rose-800/80 rounded-xl text-xs text-rose-200 flex items-center gap-2 animate-in fade-in">
+              <span>⚠️</span>
+              <span>{error}</span>
             </div>
           )}
 
-          <button
-            onClick={handleJoin}
-            disabled={isLoading}
-            className="w-full py-3 bg-blue-600 text-white font-semibold rounded-lg hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {isLoading ? 'Joining...' : '🚀 Join Room'}
-          </button>
-        </div>
+          {/* Action Buttons */}
+          <div className="flex gap-2.5 pt-3 border-t border-slate-800/80">
+            <button
+              type="button"
+              onClick={handleClose}
+              disabled={isLoading}
+              className="flex-1 px-4 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-medium rounded-xl text-xs transition-colors cursor-pointer disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              disabled={!roomIdInput.trim() || isLoading}
+              className="flex-1 px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-xl text-xs transition-colors shadow-lg shadow-indigo-950/50 border border-indigo-500/50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-1.5"
+            >
+              {isLoading ? (
+                <>
+                  <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span>Joining...</span>
+                </>
+              ) : (
+                <span>🚀 Join Room</span>
+              )}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   )

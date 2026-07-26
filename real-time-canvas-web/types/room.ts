@@ -17,6 +17,7 @@ export interface RoomUser {
   role: RoomRole
   joinedAt: Date
   lastActiveAt: Date
+  avatarUrl?: string
 }
 
 /**

@@ -65,6 +65,15 @@ export interface UserPresence {
   cursor?: { x: number; y: number }
   isActive: boolean
   lastSeen: number
+  avatarUrl?: string
+  isTyping?: boolean
+  selectedTool?: string
+  activeTool?: string
+  currentObjectId?: string
+  viewport?: {
+    zoom: number
+    pan: { x: number; y: number }
+  }
 }
 
 /**
