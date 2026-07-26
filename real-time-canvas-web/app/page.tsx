@@ -10,7 +10,7 @@ import { RoomList } from '@/components/room/RoomList'
 
 export default function Home() {
   const router = useRouter()
-  const { isAuthenticated, username, loginAsGuest, isLoading: authLoading } = useAuth()
+  const { isAuthenticated, username, loginAsGuest, logout, isLoading: authLoading } = useAuth()
   const { currentRoom, rooms, isLoading: roomLoading } = useRoom()
   
   const [showCreateDialog, setShowCreateDialog] = useState(false)
@@ -49,6 +49,12 @@ export default function Home() {
   const handleRoomJoined = (roomId: string) => {
     setShowJoinDialog(false)
     router.push(`/room/${roomId}`)
+  }
+
+  const handleLogout = () => {
+    logout()
+    // Force reload to clear all state
+    window.location.href = '/'
   }
 
   // Show login screen if not authenticated
@@ -116,13 +122,10 @@ export default function Home() {
               <p className="text-sm text-gray-500">Your collaborative canvas rooms</p>
             </div>
             <button
-              onClick={() => {
-                // Logout
-                window.location.reload()
-              }}
-              className="text-sm text-gray-400 hover:text-gray-600 transition-colors"
+              onClick={handleLogout}
+              className="px-4 py-2 text-sm bg-red-50 text-red-600 hover:bg-red-100 rounded-lg transition-colors"
             >
-              Sign out
+              Sign Out
             </button>
           </div>
 

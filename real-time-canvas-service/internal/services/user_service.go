@@ -48,9 +48,13 @@ func (s *UserService) CreateUser(req *dto.CreateUserRequest) (*models.User, erro
 
 	user := &models.User{
 		Username: req.Username,
-		Email:    req.Email,
 		IsGuest:  req.IsGuest,
 		LastSeen: time.Now().UTC(),
+	}
+
+	// Set email if provided (nil for guests)
+	if req.Email != "" {
+		user.Email = &req.Email
 	}
 
 	// Hash password if provided

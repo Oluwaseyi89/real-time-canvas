@@ -1,13 +1,13 @@
 /**
  * Zustand store for room management
- * Handles room state, user authentication, and room settings
+ * Handles room state only (auth moved to authStore)
  */
 
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import type { Room, RoomUser, RoomSettings, AuthState } from '@/types/room'
+import type { Room } from '@/types/room'
 
-interface RoomStore extends AuthState {
+interface RoomStore {
   // Room state
   currentRoom: Room | null
   rooms: Room[]
@@ -22,22 +22,12 @@ interface RoomStore extends AuthState {
   removeRoom: (roomId: string) => void
   setLoading: (loading: boolean) => void
   setError: (error: string | null) => void
-  setAuth: (auth: Partial<AuthState>) => void
-  clearAuth: () => void
   reset: () => void
 }
 
 export const useRoomStore = create<RoomStore>()(
   persist(
     (set, get) => ({
-      // Auth state
-      isAuthenticated: false,
-      userId: null,
-      username: null,
-      roomId: null,
-      guestMode: false,
-      token: undefined,
-
       // Room state
       currentRoom: null,
       rooms: [],
@@ -105,31 +95,6 @@ export const useRoomStore = create<RoomStore>()(
       },
 
       /**
-       * Set authentication state
-       */
-      setAuth: (auth: Partial<AuthState>) => {
-        set((state) => ({
-          ...state,
-          ...auth,
-          isAuthenticated: auth.isAuthenticated ?? state.isAuthenticated,
-        }))
-      },
-
-      /**
-       * Clear authentication
-       */
-      clearAuth: () => {
-        set({
-          isAuthenticated: false,
-          userId: null,
-          username: null,
-          roomId: null,
-          guestMode: false,
-          token: undefined,
-        })
-      },
-
-      /**
        * Reset store
        */
       reset: () => {
@@ -144,12 +109,8 @@ export const useRoomStore = create<RoomStore>()(
     {
       name: 'room-store',
       partialize: (state) => ({
-        userId: state.userId,
-        username: state.username,
-        roomId: state.roomId,
-        guestMode: state.guestMode,
-        isAuthenticated: state.isAuthenticated,
         currentRoom: state.currentRoom,
+        rooms: state.rooms,
       }),
     }
   )

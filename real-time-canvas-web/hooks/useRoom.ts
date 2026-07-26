@@ -3,7 +3,7 @@
  * Handles room creation, joining, listing, and sharing
  */
 
-import { useState, useCallback, useEffect } from 'react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import { useRoomStore } from '@/store/roomStore'
 import { useAuth } from './useAuth'
 import { apiClient } from '@/lib/api/client'
@@ -36,26 +36,34 @@ export function useRoom(options: UseRoomOptions = {}) {
 
   const [isCreating, setIsCreating] = useState(false)
   const [isJoining, setIsJoining] = useState(false)
+  const [hasFetched, setHasFetched] = useState(false)
+  const fetchInProgress = useRef(false)
 
   /**
    * Fetch user rooms from backend
    */
   const fetchUserRooms = useCallback(async () => {
-    if (!isAuthenticated || !userId) return
+    if (!isAuthenticated || !userId || fetchInProgress.current || hasFetched) {
+      return
+    }
+
+    fetchInProgress.current = true
+    setLoading(true)
 
     try {
-      setLoading(true)
       const response = await apiClient.getRooms()
       if (response.data && Array.isArray(response.data)) {
         setRooms(response.data)
+        setHasFetched(true)
       }
     } catch (error) {
       console.error('[useRoom] Failed to fetch rooms:', error)
-      // Fallback to local rooms
+      // Fallback to local rooms - but don't set hasFetched to true
     } finally {
       setLoading(false)
+      fetchInProgress.current = false
     }
-  }, [isAuthenticated, userId, setRooms, setLoading])
+  }, [isAuthenticated, userId, setRooms, setLoading, hasFetched])
 
   /**
    * Create a new room
@@ -77,7 +85,6 @@ export function useRoom(options: UseRoomOptions = {}) {
       setError(null)
 
       try {
-        // Call backend to create room
         const response = await apiClient.createRoom({
           name: roomName.trim(),
           isPrivate: options.isPrivate || false,
@@ -120,12 +127,10 @@ export function useRoom(options: UseRoomOptions = {}) {
       setError(null)
 
       try {
-        // Call backend to join room
         const response = await apiClient.joinRoom(roomId, { inviteCode })
 
         if (response.data) {
           const room = response.data as Room
-          // Check if room exists in local store
           const existingIndex = rooms.findIndex(r => r.id === room.id)
           if (existingIndex >= 0) {
             updateRoom(room.id, room)
@@ -158,7 +163,6 @@ export function useRoom(options: UseRoomOptions = {}) {
     if (!currentRoom || !userId) return
 
     try {
-      // Call backend to leave room
       await apiClient.leaveRoom(currentRoom.id)
       
       sessionStorage.removeItem('currentRoomId')
@@ -166,7 +170,6 @@ export function useRoom(options: UseRoomOptions = {}) {
       onRoomLeft?.()
     } catch (error) {
       console.error('[useRoom] Failed to leave room:', error)
-      // Fallback: still leave locally
       sessionStorage.removeItem('currentRoomId')
       setCurrentRoom(null)
       onRoomLeft?.()
@@ -217,26 +220,26 @@ export function useRoom(options: UseRoomOptions = {}) {
    */
   const loadCurrentRoom = useCallback(async () => {
     const roomId = sessionStorage.getItem('currentRoomId')
-    if (roomId) {
-      // Try to find in local store first
-      const room = rooms.find((r) => r.id === roomId)
-      if (room) {
-        setCurrentRoom(room)
-        return
-      }
+    if (!roomId) return
 
-      // If not in local store, fetch from backend
-      try {
-        const response = await apiClient.getRoom(roomId)
-        if (response.data) {
-          const room = response.data as Room
-          addRoom(room)
-          setCurrentRoom(room)
-        }
-      } catch (error) {
-        console.error('[useRoom] Failed to load room:', error)
-        sessionStorage.removeItem('currentRoomId')
+    // Try to find in local store first
+    const room = rooms.find((r) => r.id === roomId)
+    if (room) {
+      setCurrentRoom(room)
+      return
+    }
+
+    // If not in local store, fetch from backend
+    try {
+      const response = await apiClient.getRoom(roomId)
+      if (response.data) {
+        const room = response.data as Room
+        addRoom(room)
+        setCurrentRoom(room)
       }
+    } catch (error) {
+      console.error('[useRoom] Failed to load room:', error)
+      sessionStorage.removeItem('currentRoomId')
     }
   }, [rooms, setCurrentRoom, addRoom])
 
@@ -277,14 +280,22 @@ export function useRoom(options: UseRoomOptions = {}) {
   }, [currentRoom, userId])
 
   /**
-   * Load current room on mount
+   * Reset fetch state (useful for retry)
+   */
+  const resetFetchState = useCallback(() => {
+    setHasFetched(false)
+    fetchInProgress.current = false
+  }, [])
+
+  /**
+   * Load current room on mount and when auth changes
    */
   useEffect(() => {
     if (isAuthenticated) {
       fetchUserRooms()
       loadCurrentRoom()
     }
-  }, [isAuthenticated, fetchUserRooms, loadCurrentRoom])
+  }, [isAuthenticated]) // Only depend on isAuthenticated
 
   return {
     // State
@@ -309,5 +320,7 @@ export function useRoom(options: UseRoomOptions = {}) {
     getRoomById,
     isRoomOwner,
     fetchUserRooms,
+    resetFetchState,
   }
 }
+

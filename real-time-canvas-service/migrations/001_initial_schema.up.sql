@@ -1,7 +1,7 @@
 -- Enable UUID extension
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
 
--- Users table
+-- Users table - email is nullable
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     username VARCHAR(50) NOT NULL UNIQUE,
@@ -18,13 +18,13 @@ CREATE INDEX idx_users_deleted_at ON users(deleted_at);
 CREATE INDEX idx_users_username ON users(username);
 CREATE INDEX idx_users_email ON users(email);
 
--- Rooms table
+-- Rooms table - invite_code is nullable with unique constraint
 CREATE TABLE IF NOT EXISTS rooms (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name VARCHAR(100) NOT NULL,
     owner_id UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     is_private BOOLEAN DEFAULT FALSE,
-    invite_code VARCHAR(20) UNIQUE,
+    invite_code VARCHAR(20) UNIQUE,  -- Can be NULL for public rooms
     max_users INTEGER DEFAULT 50,
     object_count INTEGER DEFAULT 0,
     last_active TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT NOW(),

@@ -10,7 +10,7 @@ import (
 type User struct {
 	ID        string         `gorm:"primaryKey;type:uuid;default:gen_random_uuid()" json:"id"`
 	Username  string         `gorm:"uniqueIndex;type:varchar(50);not null" json:"username"`
-	Email     string         `gorm:"uniqueIndex;type:varchar(255)" json:"email,omitempty"`
+	Email     *string        `gorm:"uniqueIndex;type:varchar(255)" json:"email,omitempty"` // Pointer for nullable
 	Password  string         `gorm:"type:varchar(255)" json:"-"`
 	IsGuest   bool           `gorm:"default:true" json:"isGuest"`
 	LastSeen  time.Time      `gorm:"not null;default:now()" json:"lastSeen"`

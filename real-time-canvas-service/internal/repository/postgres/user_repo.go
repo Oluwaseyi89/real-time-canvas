@@ -86,11 +86,12 @@ func (r *UserRepository) FindOrCreateGuest(ctx context.Context, username string)
 		return nil, err
 	}
 
-	// Create new guest user
+	// Create new guest user with nil email
 	user = models.User{
 		Username: username,
 		IsGuest:  true,
 		LastSeen: time.Now().UTC(),
+		Email:    nil, // nil email for guests (will be stored as NULL)
 	}
 	err = r.db.WithContext(ctx).Create(&user).Error
 	if err != nil {
