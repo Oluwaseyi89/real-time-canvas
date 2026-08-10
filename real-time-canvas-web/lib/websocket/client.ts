@@ -27,6 +27,14 @@ interface WebSocketConfig {
   roomId: string
   userId: string
   username: string
+  /**
+   * Signed JWT proving identity. The server derives userId/username from
+   * this (browsers can't set an Authorization header on a WS upgrade
+   * request, so it travels as a query param) — the userId/username fields
+   * above are no longer trusted server-side, only used for local UI state
+   * before the connection is even open.
+   */
+  token: string
   reconnectAttempts?: number
   reconnectDelay?: number
   maxReconnectAttempts?: number
@@ -193,6 +201,7 @@ export class WebSocketClient {
       wsUrl.searchParams.set('roomId', this.config.roomId)
       wsUrl.searchParams.set('userId', this.config.userId)
       wsUrl.searchParams.set('username', this.config.username)
+      wsUrl.searchParams.set('token', this.config.token)
 
       this.ws = new WebSocket(wsUrl.toString())
       this.setupEventListeners()

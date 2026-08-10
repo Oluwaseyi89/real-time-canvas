@@ -2,12 +2,16 @@ package dto
 
 import "time"
 
-// UserResponse is the user data sent to clients
+// UserResponse is the user data sent to clients. Token is only populated on
+// register/login/guest responses — a signed JWT the client must send back
+// as `Authorization: Bearer <token>` on protected routes and as `?token=`
+// on the WebSocket connection.
 type UserResponse struct {
 	ID       string `json:"id"`
 	Username string `json:"username"`
 	IsGuest  bool   `json:"isGuest"`
 	LastSeen string `json:"lastSeen,omitempty"`
+	Token    string `json:"token,omitempty"`
 }
 
 // CreateUserRequest represents user creation request

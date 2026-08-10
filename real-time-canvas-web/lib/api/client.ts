@@ -35,7 +35,9 @@ class ApiClient {
     // Request interceptor
     this.client.interceptors.request.use(
       (config: any) => {
-        // Add auth token if available
+        // Add auth token if available. The backend now derives identity
+        // solely from this signed token — it no longer reads X-User-ID
+        // (previously an unsigned header any client could set to any value).
         const token = this.getToken()
         if (token) {
           config.headers = {
@@ -43,16 +45,7 @@ class ApiClient {
             Authorization: `Bearer ${token}`,
           }
         }
-        
-        // Add user ID for development
-        const userId = localStorage.getItem('userId')
-        if (userId) {
-          config.headers = {
-            ...config.headers,
-            'X-User-ID': userId,
-          }
-        }
-        
+
         return config
       },
       (error: any) => Promise.reject(error)

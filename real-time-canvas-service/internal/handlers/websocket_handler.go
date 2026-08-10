@@ -1,13 +1,12 @@
 package handlers
 
 import (
-	"crypto/rand"
 	"log"
-	"math/big"
 	"net/http"
 
 	"real-time-canvas/real-time-canvas-service/internal/services"
 	ws "real-time-canvas/real-time-canvas-service/internal/websocket"
+	jwtpkg "real-time-canvas/real-time-canvas-service/pkg/jwt"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
@@ -25,28 +24,36 @@ var upgrader = websocket.Upgrader{
 type WebSocketHandler struct {
 	hub         *ws.Hub
 	roomService *services.RoomService
+	jwtService  *jwtpkg.Service
 }
 
 // NewWebSocketHandler creates a new WebSocket handler
-func NewWebSocketHandler(hub *ws.Hub, roomService *services.RoomService) *WebSocketHandler {
-	return &WebSocketHandler{hub: hub, roomService: roomService}
+func NewWebSocketHandler(hub *ws.Hub, roomService *services.RoomService, jwtService *jwtpkg.Service) *WebSocketHandler {
+	return &WebSocketHandler{hub: hub, roomService: roomService, jwtService: jwtService}
 }
 
 // HandleWebSocket handles WebSocket connections
 func (h *WebSocketHandler) HandleWebSocket(c *gin.Context) {
-	// Get user info from context (set by auth middleware)
-	userID := c.GetString("userID")
-	if userID == "" {
-		userID = c.Query("userId")
-		if userID == "" {
-			userID = "guest-" + generateShortID()
-		}
+	// Browsers' native WebSocket API can't set an Authorization header on
+	// the upgrade request, so the token travels as a query param instead —
+	// this is the only identity source now. Previously userId/username came
+	// straight from client-supplied query params with no proof of identity
+	// (or a "guest-<random>" fallback if absent), so any client could claim
+	// to be any user.
+	token := c.Query("token")
+	if token == "" {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "token is required"})
+		return
 	}
 
-	username := c.Query("username")
-	if username == "" {
-		username = "Guest"
+	claims, err := h.jwtService.ValidateToken(token)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "invalid or expired token"})
+		return
 	}
+
+	userID := claims.UserID
+	username := claims.Username
 
 	// Get room ID from query — no "default" fallback: a room-less socket has
 	// no membership to validate and nothing legitimate to join.
@@ -104,29 +111,4 @@ func (h *WebSocketHandler) HandleWebSocket(c *gin.Context) {
 	go client.ReadPump()
 
 	log.Printf("[WebSocket] Client connected: %s (%s) in room %s", client.ID, username, roomID)
-}
-
-// generateShortID generates a short ID using crypto/rand
-func generateShortID() string {
-	const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
-	b := make([]byte, 6)
-	for i := range b {
-		n, err := rand.Int(rand.Reader, big.NewInt(int64(len(charset))))
-		if err != nil {
-			// Fallback to a simple counter-based approach if crypto/rand fails
-			return fallbackShortID()
-		}
-		b[i] = charset[n.Int64()]
-	}
-	return string(b)
-}
-
-// fallbackShortID is a fallback ID generator
-func fallbackShortID() string {
-	const charset = "abcdefghijklmnopqrstuvwxyz0123456789"
-	b := make([]byte, 6)
-	for i := range b {
-		b[i] = charset[i%len(charset)]
-	}
-	return string(b)
 }

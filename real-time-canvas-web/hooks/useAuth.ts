@@ -47,8 +47,8 @@ export function useAuth(options: UseAuthOptions = {}) {
           
           localStorage.setItem('userId', user.id)
           localStorage.setItem('username', user.username)
-          localStorage.setItem('authToken', `token-${user.id}`)
-          
+          localStorage.setItem('authToken', user.token)
+
           sessionStorage.setItem('guestId', user.id)
           sessionStorage.setItem('username', user.username)
 
@@ -94,8 +94,8 @@ export function useAuth(options: UseAuthOptions = {}) {
           
           localStorage.setItem('userId', user.id)
           localStorage.setItem('username', user.username)
-          localStorage.setItem('authToken', `token-${user.id}`)
-          
+          localStorage.setItem('authToken', user.token)
+
           setAuth({
             isAuthenticated: true,
             userId: user.id,
@@ -143,8 +143,8 @@ export function useAuth(options: UseAuthOptions = {}) {
           
           localStorage.setItem('userId', user.id)
           localStorage.setItem('username', user.username)
-          localStorage.setItem('authToken', `token-${user.id}`)
-          
+          localStorage.setItem('authToken', user.token)
+
           setAuth({
             isAuthenticated: true,
             userId: user.id,

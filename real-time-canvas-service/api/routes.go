@@ -3,6 +3,7 @@ package api
 import (
 	"real-time-canvas/real-time-canvas-service/internal/handlers"
 	"real-time-canvas/real-time-canvas-service/internal/middleware"
+	jwtpkg "real-time-canvas/real-time-canvas-service/pkg/jwt"
 
 	"github.com/gin-gonic/gin"
 )
@@ -13,6 +14,7 @@ func SetupRouter(
 	roomHandler *handlers.RoomHandler,
 	canvasHandler *handlers.CanvasHandler,
 	wsHandler *handlers.WebSocketHandler,
+	jwtService *jwtpkg.Service,
 ) *gin.Engine {
 	router := gin.Default()
 
@@ -24,7 +26,9 @@ func SetupRouter(
 		c.JSON(200, gin.H{"status": "ok"})
 	})
 
-	// WebSocket endpoint (no auth required for WebSocket)
+	// WebSocket endpoint — auth happens inside the handler itself (a ?token=
+	// query param, since the browser WebSocket API can't set an Authorization
+	// header on the upgrade request), not via this middleware chain.
 	router.GET("/ws", wsHandler.HandleWebSocket)
 
 	// API v1 routes
@@ -40,7 +44,7 @@ func SetupRouter(
 
 		// Protected routes
 		protected := v1.Group("/")
-		protected.Use(middleware.AuthMiddleware())
+		protected.Use(middleware.AuthMiddleware(jwtService))
 		{
 			// User profile
 			protected.GET("/auth/profile", authHandler.GetProfile)
