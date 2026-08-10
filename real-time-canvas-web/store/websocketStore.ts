@@ -1,36 +1,34 @@
 /**
- * Zustand store for WebSocket state management
- * Handles connection state, messages, and event tracking
+ * Zustand store for WebSocket connection state
+ *
+ * Remote user/cursor state lives in store/collaborationStore.ts — this store
+ * used to duplicate that as a second, never-written-to `users` map (nothing
+ * called its addUser/updateUser/removeUser outside the store's own file,
+ * while CursorTracker read from it, so cursors never rendered). Keeping two
+ * sources of truth for the same data was the bug; this store now only tracks
+ * the connection itself.
  */
 
 import { create } from 'zustand'
-import type { ConnectionState, WebSocketMessage, UserPresence } from '@/types/websocket'
+import type { ConnectionState, WebSocketMessage } from '@/types/websocket'
 
 interface WebSocketStore {
   // Connection state
   connectionState: ConnectionState
   isConnected: boolean
   reconnectAttempts: number
-  
+
   // Message tracking
   messages: WebSocketMessage[]
   messageCount: number
   lastMessageAt: Date | null
-  
-  // Users in room
-  users: Map<string, UserPresence>
-  userCount: number
-  
+
   // Actions
   setConnectionState: (state: ConnectionState) => void
   setIsConnected: (connected: boolean) => void
   setReconnectAttempts: (attempts: number) => void
   addMessage: (message: WebSocketMessage) => void
   clearMessages: () => void
-  addUser: (user: UserPresence) => void
-  removeUser: (userId: string) => void
-  updateUser: (userId: string, updates: Partial<UserPresence>) => void
-  clearUsers: () => void
   reset: () => void
 }
 
@@ -42,8 +40,6 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
   messages: [],
   messageCount: 0,
   lastMessageAt: null,
-  users: new Map(),
-  userCount: 0,
 
   /**
    * Set connection state
@@ -91,52 +87,6 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
   },
 
   /**
-   * Add a user to the room
-   */
-  addUser: (user: UserPresence) => {
-    const { users } = get()
-    const newUsers = new Map(users)
-    newUsers.set(user.userId, user)
-    set({
-      users: newUsers,
-      userCount: newUsers.size,
-    })
-  },
-
-  /**
-   * Remove a user from the room
-   */
-  removeUser: (userId: string) => {
-    const { users } = get()
-    const newUsers = new Map(users)
-    newUsers.delete(userId)
-    set({
-      users: newUsers,
-      userCount: newUsers.size,
-    })
-  },
-
-  /**
-   * Update a user's presence
-   */
-  updateUser: (userId: string, updates: Partial<UserPresence>) => {
-    const { users } = get()
-    const existing = users.get(userId)
-    if (existing) {
-      const newUsers = new Map(users)
-      newUsers.set(userId, { ...existing, ...updates })
-      set({ users: newUsers })
-    }
-  },
-
-  /**
-   * Clear all users
-   */
-  clearUsers: () => {
-    set({ users: new Map(), userCount: 0 })
-  },
-
-  /**
    * Reset store to initial state
    */
   reset: () => {
@@ -147,8 +97,6 @@ export const useWebSocketStore = create<WebSocketStore>((set, get) => ({
       messages: [],
       messageCount: 0,
       lastMessageAt: null,
-      users: new Map(),
-      userCount: 0,
     })
   },
 }))

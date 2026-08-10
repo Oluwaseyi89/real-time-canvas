@@ -26,6 +26,8 @@ export type WebSocketMessageType =
   | 'user:presence'
   | 'user:cursor'
   | 'user:typing'
+  | 'user:joined'
+  | 'user:left'
   // Object events
   | 'object:create'
   | 'object:update'
@@ -155,14 +157,16 @@ export interface WebSocketHandlers {
   onReconnect?: (attempt: number) => void
   onError?: (error: ErrorPayload) => void
   onMessage?: <T>(message: WebSocketMessage<T>) => void
-  onObjectCreate?: (payload: ObjectCreatePayload) => void
-  onObjectUpdate?: (payload: ObjectUpdatePayload) => void
-  onObjectDelete?: (payload: ObjectDeletePayload) => void
+  // Object/canvas/physics handlers receive the full message (not just the
+  // payload) because downstream consumers need message.userId for attribution.
+  onObjectCreate?: (message: WebSocketMessage<ObjectCreatePayload>) => void
+  onObjectUpdate?: (message: WebSocketMessage<ObjectUpdatePayload>) => void
+  onObjectDelete?: (message: WebSocketMessage<ObjectDeletePayload>) => void
   onUserPresence?: (presence: UserPresence) => void
   onCursorMove?: (position: CursorPosition) => void
-  onCanvasSync?: (payload: CanvasSyncPayload) => void
-  onPhysicsEvent?: (payload: PhysicsPayload) => void
+  onCanvasSync?: (message: WebSocketMessage<CanvasSyncPayload>) => void
+  onPhysicsEvent?: (message: WebSocketMessage<PhysicsPayload>) => void
   onRoomJoined?: (roomId: string, users: UserPresence[]) => void
-  onUserJoined?: (user: UserPresence) => void
-  onUserLeft?: (userId: string) => void
+  onUserJoined?: (payload: { userId: string; username: string }) => void
+  onUserLeft?: (payload: { userId: string }) => void
 }
