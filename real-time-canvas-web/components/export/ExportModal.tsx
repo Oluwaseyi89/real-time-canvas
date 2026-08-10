@@ -15,6 +15,8 @@ import { createPNGExporter } from './PNGExporter'
 import { createSVGExporter } from './SVGExporter'
 import { createJSONExporter } from './JSONExporter'
 import type { ExportFormat, ExportOptions } from '@/types/export'
+import { Modal } from '@/components/ui/Modal'
+import { Button } from '@/components/ui/Button'
 
 interface ExportModalProps {
   isOpen: boolean
@@ -179,31 +181,24 @@ export function ExportModal({ isOpen, onClose }: ExportModalProps) {
     username,
   ])
 
-  if (!isOpen) return null
-
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-md p-4 animate-in fade-in duration-200">
-      <div className="bg-slate-950/95 border border-slate-800 rounded-2xl shadow-2xl w-full max-w-lg p-6 max-h-[90vh] overflow-y-auto text-slate-100 backdrop-blur-xl">
-        {/* Modal Header */}
-        <div className="flex justify-between items-center pb-4 border-b border-slate-800/80 mb-5">
-          <div className="flex items-center gap-2">
-            <span className="text-xl">📤</span>
-            <h2 className="text-lg font-bold tracking-wide text-slate-100">
-              Export Canvas
-            </h2>
-          </div>
-          <button
-            onClick={onClose}
-            disabled={isExporting}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 transition-colors disabled:opacity-50"
-            aria-label="Close export modal"
-          >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-
+    <Modal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Export Canvas"
+      icon="📤"
+      size="lg"
+      footer={
+        <>
+          <Button type="button" variant="secondary" fullWidth disabled={isExporting} onClick={onClose}>
+            Cancel
+          </Button>
+          <Button type="button" fullWidth disabled={isExporting} onClick={handleExport} isLoading={isExporting} loadingText="Exporting...">
+            🚀 Download
+          </Button>
+        </>
+      }
+    >
         <div className="space-y-5 text-xs">
           {/* Format Selector Cards */}
           <div>
@@ -383,7 +378,7 @@ export function ExportModal({ isOpen, onClose }: ExportModalProps) {
 
           {/* Error Message Alert */}
           {error && (
-            <div className="p-3 bg-rose-950/60 border border-rose-800/80 rounded-xl text-xs text-rose-200 flex items-center gap-2 animate-in fade-in">
+            <div className="p-3 bg-rose-950/60 border border-rose-800/80 rounded-xl text-xs text-rose-200 flex items-center gap-2">
               <span>⚠️</span>
               <span>{error}</span>
             </div>
@@ -404,28 +399,7 @@ export function ExportModal({ isOpen, onClose }: ExportModalProps) {
               </div>
             </div>
           )}
-
-          {/* Action Buttons */}
-          <div className="flex gap-2.5 pt-3 border-t border-slate-800/80">
-            <button
-              type="button"
-              onClick={onClose}
-              disabled={isExporting}
-              className="flex-1 px-4 py-2 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-medium rounded-xl text-xs transition-colors cursor-pointer disabled:opacity-50"
-            >
-              Cancel
-            </button>
-            <button
-              type="button"
-              onClick={handleExport}
-              disabled={isExporting}
-              className="flex-1 px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-xl text-xs transition-colors shadow-lg shadow-indigo-950/50 border border-indigo-500/50 cursor-pointer disabled:opacity-50"
-            >
-              {isExporting ? 'Exporting...' : '🚀 Download'}
-            </button>
-          </div>
         </div>
-      </div>
-    </div>
+    </Modal>
   )
 }

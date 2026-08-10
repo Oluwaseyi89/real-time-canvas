@@ -13,6 +13,8 @@ import { useRoom } from '@/hooks/useRoom'
 import { RoomList } from '@/components/room/RoomList'
 import { JoinRoomDialog } from '@/components/room/JoinRoomDialog'
 import { CreateRoomDialog } from '@/components/room/CreateRoomDialog'
+import { Button } from '@/components/ui/Button'
+import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
 
 export default function CanvasPage() {
   const router = useRouter()
@@ -85,7 +87,7 @@ export default function CanvasPage() {
     return (
       <div className="relative flex items-center justify-center min-h-screen w-screen bg-slate-950 text-slate-100">
         <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] opacity-40 pointer-events-none z-0" />
-        <div className="relative z-10 w-10 h-10 rounded-full border-2 border-indigo-500/20 border-t-indigo-500 animate-spin" />
+        <LoadingSpinner size="md" color="indigo" className="relative z-10" />
       </div>
     )
   }
@@ -152,31 +154,15 @@ export default function CanvasPage() {
             </p>
 
             <div className="pt-2 flex flex-wrap gap-3">
-              <button
-                onClick={handleQuickCreateRoom}
-                disabled={isCreating}
-                className="px-5 py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-xl text-xs transition-all shadow-lg shadow-indigo-950/50 border border-indigo-500/50 cursor-pointer flex items-center gap-2 disabled:opacity-50"
-              >
-                {isCreating ? (
-                  <>
-                    <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                    <span>Launching Session...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>✨</span>
-                    <span>New Blank Canvas</span>
-                  </>
-                )}
-              </button>
+              <Button size="lg" onClick={handleQuickCreateRoom} isLoading={isCreating} loadingText="Launching Session...">
+                <span>✨</span>
+                <span>New Blank Canvas</span>
+              </Button>
 
-              <button
-                onClick={() => setIsJoinDialogOpen(true)}
-                className="px-5 py-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 font-medium rounded-xl text-xs transition-all cursor-pointer flex items-center gap-2"
-              >
+              <Button variant="secondary" size="lg" onClick={() => setIsJoinDialogOpen(true)}>
                 <span>🚪</span>
                 <span>Join via Code or URL</span>
-              </button>
+              </Button>
             </div>
           </div>
         </div>
@@ -192,12 +178,9 @@ export default function CanvasPage() {
                   Your Active Rooms
                 </h3>
               </div>
-              <button
-                onClick={() => setIsCreateDialogOpen(true)}
-                className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors font-mono cursor-pointer"
-              >
+              <Button variant="ghost" size="sm" className="font-mono" onClick={() => setIsCreateDialogOpen(true)}>
                 + Create New
-              </button>
+              </Button>
             </div>
 
             {/* Room List Component */}
@@ -219,13 +202,10 @@ export default function CanvasPage() {
               <p className="text-xs text-slate-400">
                 Paste room URLs or join codes directly to enter collaborative sessions in real-time.
               </p>
-              <button
-                onClick={() => setIsJoinDialogOpen(true)}
-                className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 font-medium rounded-xl text-xs transition-colors cursor-pointer flex items-center justify-center gap-2"
-              >
+              <Button variant="secondary" fullWidth onClick={() => setIsJoinDialogOpen(true)}>
                 <span>📋</span>
                 <span>Enter Invite Link</span>
-              </button>
+              </Button>
             </div>
 
             {/* System Status Telemetry Card */}
