@@ -24,6 +24,15 @@ type Client struct {
 	LastSeen time.Time
 	mu       sync.RWMutex
 	writeMu  sync.Mutex
+
+	// closeOnce guards Send from being closed twice. A client can be torn
+	// down from two independent goroutines racing each other: ReadPump's
+	// own error handler (ends up calling Close via handleUnregister) and
+	// the hub's idle-client sweep on its ticker. Without this, both paths
+	// hitting the same client close(c.Send) twice, which panics — and since
+	// that panic previously ran on the hub's single goroutine, it took down
+	// real-time collaboration for every room, not just this one client.
+	closeOnce sync.Once
 }
 
 // NewClient creates a new WebSocket client
@@ -398,10 +407,13 @@ func (c *Client) updateLastSeen() {
 	c.LastSeen = time.Now()
 }
 
-// Close closes the client connection
+// Close closes the client connection. Safe to call more than once — only
+// the first call actually closes Send; later calls are no-ops.
 func (c *Client) Close() {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-	c.IsActive = false
-	close(c.Send)
+	c.closeOnce.Do(func() {
+		c.mu.Lock()
+		c.IsActive = false
+		c.mu.Unlock()
+		close(c.Send)
+	})
 }
