@@ -130,6 +130,29 @@ function isRoomJoinedPayload(payload: unknown): payload is { roomId: string; use
 }
 
 /**
+ * Type guard for user joined payload
+ */
+function isUserJoinedPayload(payload: unknown): payload is { userId: string; username: string } {
+  return (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'userId' in payload &&
+    'username' in payload
+  )
+}
+
+/**
+ * Type guard for user left payload
+ */
+function isUserLeftPayload(payload: unknown): payload is { userId: string } {
+  return (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'userId' in payload
+  )
+}
+
+/**
  * WebSocket client class with full type safety
  */
 export class WebSocketClient {
@@ -425,24 +448,34 @@ export class WebSocketClient {
           this.handlers.onCursorMove?.(payload)
         }
         break
+      case 'user:joined':
+        if (isUserJoinedPayload(payload)) {
+          this.handlers.onUserJoined?.(payload)
+        }
+        break
+      case 'user:left':
+        if (isUserLeftPayload(payload)) {
+          this.handlers.onUserLeft?.(payload)
+        }
+        break
       case 'object:create':
         if (isObjectCreatePayload(payload)) {
-          this.handlers.onObjectCreate?.(payload)
+          this.handlers.onObjectCreate?.(message as WebSocketMessage<ObjectCreatePayload>)
         }
         break
       case 'object:update':
         if (isObjectUpdatePayload(payload)) {
-          this.handlers.onObjectUpdate?.(payload)
+          this.handlers.onObjectUpdate?.(message as WebSocketMessage<ObjectUpdatePayload>)
         }
         break
       case 'object:delete':
         if (isObjectDeletePayload(payload)) {
-          this.handlers.onObjectDelete?.(payload)
+          this.handlers.onObjectDelete?.(message as WebSocketMessage<ObjectDeletePayload>)
         }
         break
       case 'canvas:sync':
         if (isCanvasSyncPayload(payload)) {
-          this.handlers.onCanvasSync?.(payload)
+          this.handlers.onCanvasSync?.(message as WebSocketMessage<CanvasSyncPayload>)
         }
         break
       case 'physics:throw':
@@ -450,7 +483,7 @@ export class WebSocketClient {
       case 'physics:attract':
       case 'physics:repel':
         if (isPhysicsPayload(payload)) {
-          this.handlers.onPhysicsEvent?.(payload)
+          this.handlers.onPhysicsEvent?.(message as WebSocketMessage<PhysicsPayload>)
         }
         break
       case 'connection:error':

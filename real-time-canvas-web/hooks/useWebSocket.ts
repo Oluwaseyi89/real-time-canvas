@@ -46,6 +46,18 @@ export function useWebSocket(options: UseWebSocketOptions) {
   const clientRef = useRef<WebSocketClient | null>(null)
   const handlersRef = useRef<WebSocketHandlers | null>(null)
 
+  // Callers (e.g. the room page) typically pass onConnect/onDisconnect/etc as
+  // inline arrow functions, which get a new identity every render. Reading
+  // them through a ref — updated every render but not itself a dependency —
+  // keeps initClient/connect stable across renders instead of tearing down
+  // and reopening the socket every time the caller re-renders (which, once
+  // live presence/cursor data starts flowing into store-subscribed state,
+  // happens dozens of times a second and produced a reconnect storm).
+  const optionsHandlersRef = useRef({ onConnect, onDisconnect, onReconnect, onError })
+  useEffect(() => {
+    optionsHandlersRef.current = { onConnect, onDisconnect, onReconnect, onError }
+  })
+
   /**
    * Initialize WebSocket client
    */
@@ -70,17 +82,17 @@ export function useWebSocket(options: UseWebSocketOptions) {
     client.on({
       onConnect: () => {
         setIsConnected(true)
-        onConnect?.()
+        optionsHandlersRef.current.onConnect?.()
       },
       onDisconnect: () => {
         setIsConnected(false)
-        onDisconnect?.()
+        optionsHandlersRef.current.onDisconnect?.()
       },
       onReconnect: (attempt) => {
-        onReconnect?.(attempt)
+        optionsHandlersRef.current.onReconnect?.(attempt)
       },
       onError: (error) => {
-        onError?.(error)
+        optionsHandlersRef.current.onError?.(error)
       },
     })
 
@@ -106,10 +118,6 @@ export function useWebSocket(options: UseWebSocketOptions) {
     reconnectDelay,
     maxReconnectAttempts,
     heartbeatInterval,
-    onConnect,
-    onDisconnect,
-    onReconnect,
-    onError,
   ])
 
   /**

@@ -18,6 +18,8 @@ import { usePhysics } from '@/hooks/usePhysics'
 import { useMinimap } from '@/hooks/useMinimap'
 import { useOfflineSync } from '@/hooks/useOfflineSync'
 import { useTimeTravel } from '@/hooks/useTimeTravel'
+import { useCanvasStore } from '@/store/canvasStore'
+import { createWebSocketHandlers, type CanvasEventHandlerContext } from '@/lib/websocket/handlers'
 import { ExportModal } from '@/components/export/ExportModal'
 import { ZoomControls } from '@/components/canvas/ZoomControls'
 import { Toolbar } from '@/components/canvas/tools/Toolbar'
@@ -48,6 +50,10 @@ export default function CanvasRoomPage() {
 
   const canvasElementRef = useRef<HTMLCanvasElement | null>(null)
   const lastCursorPos = useRef<{ x: number; y: number } | null>(null)
+  // Object IDs currently being removed as a result of an incoming WS delete —
+  // lets onObjectRemoved distinguish "remote delete applied locally" (skip
+  // rebroadcast) from "local user deleted this" (broadcast it).
+  const remoteOriginDeletesRef = useRef<Set<string>>(new Set())
 
   // Offline Sync setup
   const {
@@ -81,41 +87,76 @@ export default function CanvasRoomPage() {
   } = useCanvas({
     onObjectAdded: async (obj) => {
       const custom = obj as any
-      if (custom.id && custom.type) {
-        // Record event for time travel
-        recordEvent('object:create', {
-          objectId: custom.id,
-          type: custom.type,
-          data: custom.toObject ? custom.toObject() : {},
-          position: { x: custom.left || 0, y: custom.top || 0 },
-        })
+      if (!custom.id || !custom.type) return
 
-        try {
-          await queueOperation('object:create', {
-            objectId: custom.id,
-            type: custom.type,
-            data: custom.toObject ? custom.toObject() : {},
-            position: { x: custom.left || 0, y: custom.top || 0 },
-            userId,
-            timestamp: Date.now(),
-          })
-        } catch (error) {
-          console.error('[CanvasRoom] Failed to queue operation:', error)
-        }
-
-        syncObject({
-          objectId: custom.id,
-          type: custom.type,
-          data: custom.toObject ? custom.toObject() : {},
-          version: 1,
-          userId,
-          timestamp: Date.now(),
-        })
-
+      if (custom.synced) {
+        // This object was created by WebSocketHandlers from a remote
+        // object:create/canvas:sync message — give it a physics body
+        // locally, but don't re-record/re-queue/re-broadcast it as if it
+        // were a brand-new local action (that would echo it back out and
+        // misattribute it to this user).
         if (physicsEngine) {
           addPhysicsBodyForObject(obj)
         }
+        return
       }
+
+      const data = custom.toObject ? custom.toObject() : {}
+      const position = { x: custom.left || 0, y: custom.top || 0 }
+
+      // Record event for time travel
+      recordEvent('object:create', {
+        objectId: custom.id,
+        type: custom.type,
+        data,
+        position,
+      })
+
+      try {
+        await queueOperation('object:create', {
+          objectId: custom.id,
+          type: custom.type,
+          data,
+          position,
+          userId,
+          timestamp: Date.now(),
+        })
+      } catch (error) {
+        console.error('[CanvasRoom] Failed to queue operation:', error)
+      }
+
+      broadcastObjectCreate({
+        objectId: custom.id,
+        type: custom.type,
+        data,
+        position,
+      })
+
+      if (physicsEngine) {
+        addPhysicsBodyForObject(obj)
+      }
+    },
+    onObjectModified: (obj) => {
+      const custom = obj as any
+      if (!custom.id) return
+
+      const updates = custom.toObject ? custom.toObject() : {}
+      recordEvent('object:update', { objectId: custom.id, updates })
+      broadcastObjectUpdate({ objectId: custom.id, updates, userId })
+    },
+    onObjectRemoved: (obj) => {
+      const custom = obj as any
+      if (!custom.id) return
+
+      if (remoteOriginDeletesRef.current.has(custom.id)) {
+        // This removal came from applying a remote object:delete message —
+        // don't rebroadcast it as a new local deletion.
+        remoteOriginDeletesRef.current.delete(custom.id)
+        return
+      }
+
+      recordEvent('object:delete', { objectId: custom.id })
+      broadcastObjectDelete({ objectId: custom.id, userId })
     },
   })
 
@@ -138,9 +179,13 @@ export default function CanvasRoomPage() {
     },
   })
 
-  // WebSocket Connection Setup
+  // WebSocket Connection Setup — the single socket for this room session.
+  // Object/canvas/physics handlers are registered on `client` below once the
+  // canvas is ready; useCollaboration registers presence/cursor handlers on
+  // the same client. (Previously useCollaboration opened its own, separate
+  // socket internally, so its isConnected/send were out of sync with this one.)
   const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8080'
-  const { isConnected, send, connect, disconnect } = useWebSocket({
+  const { client, isConnected, send, connect, disconnect } = useWebSocket({
     url: wsUrl,
     roomId,
     userId,
@@ -160,12 +205,42 @@ export default function CanvasRoomPage() {
   })
 
   // Real-time Collaboration Engine
-  const { broadcastCursor, syncObject } = useCollaboration({
+  const { broadcastCursor, broadcastObjectCreate, broadcastObjectUpdate, broadcastObjectDelete } = useCollaboration({
     roomId,
     userId,
     username: username || 'Guest',
+    client,
+    send,
+    isConnected,
     enabled: isConnected,
   })
+
+  // Live canvas object/physics sync — applies incoming object:create/update/
+  // delete and physics:* messages to the Fabric canvas via WebSocketHandlers.
+  const canvas = useCanvasStore((state) => state.canvas)
+  useEffect(() => {
+    if (!client || !canvas) return
+
+    const context: CanvasEventHandlerContext = {
+      canvas,
+      addObject: (obj) => useCanvasStore.getState().addObject(obj),
+      removeObject: (id) => {
+        remoteOriginDeletesRef.current.add(id)
+        useCanvasStore.getState().removeObject(id)
+      },
+      updateObject: (id, props) => useCanvasStore.getState().updateObject(id, props),
+    }
+
+    const handlers = createWebSocketHandlers(context, client)
+
+    client.on({
+      onObjectCreate: (message) => handlers.handleObjectCreate(message),
+      onObjectUpdate: (message) => handlers.handleObjectUpdate(message),
+      onObjectDelete: (message) => handlers.handleObjectDelete(message),
+      onCanvasSync: (message) => handlers.handleCanvasSync(message),
+      onPhysicsEvent: (message) => handlers.handlePhysicsEvent(message),
+    })
+  }, [client, canvas])
 
   // Minimap Initialization
   useMinimap()

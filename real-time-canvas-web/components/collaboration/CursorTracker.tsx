@@ -6,15 +6,14 @@
  * with user name badges and active tool indicators.
  */
 
-import { useWebSocketStore } from '@/store/websocketStore'
-import { UserPresence } from '@/types/websocket'
+import { useCollaborationStore } from '@/store/collaborationStore'
 
 interface CursorTrackerProps {
   canvasRef: React.RefObject<HTMLCanvasElement | null>
 }
 
 export function CursorTracker({ canvasRef }: CursorTrackerProps) {
-  const { users } = useWebSocketStore()
+  const { users } = useCollaborationStore()
 
   const canvas = canvasRef.current
   if (!canvas) return null
@@ -64,9 +63,9 @@ export function CursorTracker({ canvasRef }: CursorTrackerProps) {
               <span>{user.username || 'Collaborator'}</span>
               
               {/* Optional Active Tool Badge */}
-              {user.activeTool && (
+              {user.selectedTool && (
                 <span className="text-[9px] uppercase font-mono px-1 py-0.2 rounded bg-black/20">
-                  {user.activeTool}
+                  {user.selectedTool}
                 </span>
               )}
             </div>

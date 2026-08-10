@@ -17,8 +17,6 @@ import type {
   ObjectCreatePayload,
   ObjectUpdatePayload,
   ObjectDeletePayload,
-  UserPresence,
-  CursorPosition,
   CanvasSyncPayload,
   PhysicsPayload,
   ErrorPayload,
@@ -27,17 +25,17 @@ import type { WebSocketClient } from './client'
 
 /**
  * Canvas event handler context
+ *
+ * Presence/cursor/user-joined/user-left are handled separately by
+ * useCollaboration (which writes directly to collaborationStore with
+ * dedup + mutual-discovery logic) — this context only covers canvas
+ * object and physics mutations, which is what WebSocketHandlers is for.
  */
 export interface CanvasEventHandlerContext {
   canvas: Canvas
   addObject: (obj: FabricObject) => void
   removeObject: (id: string) => void
   updateObject: (id: string, props: Record<string, unknown>) => void
-  setCursor: (userId: string, position: { x: number; y: number }) => void
-  removeCursor: (userId: string) => void
-  updateUserPresence: (presence: UserPresence) => void
-  removeUser: (userId: string) => void
-  syncCanvas: (objects: Array<{ id: string; type: string; data: Record<string, unknown> }>) => void
 }
 
 /**
@@ -189,28 +187,33 @@ export class WebSocketHandlers {
   }
 
   /**
-   * Handle user presence update
-   */
-  handleUserPresence(message: WebSocketMessage<UserPresence>): void {
-    this.context.updateUserPresence(message.payload)
-  }
-
-  /**
-   * Handle cursor movement
-   */
-  handleCursorMove(message: WebSocketMessage<CursorPosition>): void {
-    this.context.setCursor(
-      message.payload.userId,
-      { x: message.payload.x, y: message.payload.y }
-    )
-  }
-
-  /**
-   * Handle canvas sync
+   * Handle canvas sync (bulk hydration of objects, e.g. on room join)
+   * Reuses handleObjectCreate per object so we don't duplicate the
+   * type-to-Fabric-object construction logic.
    */
   handleCanvasSync(message: WebSocketMessage<CanvasSyncPayload>): void {
     const { objects } = message.payload
-    this.context.syncCanvas(objects)
+
+    for (const obj of objects) {
+      const existing = this.context.canvas.getObjects().find(
+        (o: any) => o.id === obj.id
+      )
+      if (existing) continue
+
+      this.handleObjectCreate({
+        ...message,
+        type: 'object:create',
+        payload: {
+          objectId: obj.id,
+          type: obj.type,
+          data: obj.data,
+          position: {
+            x: (obj.data.left as number) || 0,
+            y: (obj.data.top as number) || 0,
+          },
+        },
+      })
+    }
   }
 
   /**
@@ -309,21 +312,6 @@ export class WebSocketHandlers {
   handleError(message: WebSocketMessage<ErrorPayload>): void {
     console.error('[WebSocketHandlers] Server error:', message.payload)
     // Display error to user (could trigger a toast notification)
-  }
-
-  /**
-   * Handle user joined
-   */
-  handleUserJoined(message: WebSocketMessage<{ user: UserPresence }>): void {
-    this.context.updateUserPresence(message.payload.user)
-  }
-
-  /**
-   * Handle user left
-   */
-  handleUserLeft(message: WebSocketMessage<{ userId: string }>): void {
-    this.context.removeUser(message.payload.userId)
-    this.context.removeCursor(message.payload.userId)
   }
 }
 

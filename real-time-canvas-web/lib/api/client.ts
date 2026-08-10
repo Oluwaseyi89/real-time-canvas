@@ -138,7 +138,10 @@ class ApiClient {
   }
 
   async joinRoom(id: string, data?: { inviteCode?: string }) {
-    return this.post(`/rooms/${id}/join`, data || {})
+    // The backend's JoinRoomRequest DTO requires `roomId` in the body
+    // (`binding:"required"`) even though it's also the URL param — omitting
+    // it fails validation and the join 400s unconditionally.
+    return this.post(`/rooms/${id}/join`, { roomId: id, ...data })
   }
 
   async leaveRoom(id: string) {

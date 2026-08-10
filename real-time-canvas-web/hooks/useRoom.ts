@@ -16,6 +16,16 @@ interface UseRoomOptions {
   onRoomLeft?: () => void
 }
 
+/**
+ * The backend's room response embeds plain user records (`{ id, username, ... }`)
+ * under `users`, not the richer `RoomUser` shape (`{ userId, role, joinedAt, ... }`)
+ * this type declares — so `user.userId` is always undefined at runtime. Read
+ * defensively until the DTOs are reconciled.
+ */
+function roomUserId(user: RoomUser): string | undefined {
+  return user.userId ?? (user as unknown as { id?: string }).id
+}
+
 export function useRoom(options: UseRoomOptions = {}) {
   const { onRoomCreated, onRoomJoined, onRoomLeft } = options
   const { isAuthenticated, userId, username } = useAuth()
@@ -248,9 +258,7 @@ export function useRoom(options: UseRoomOptions = {}) {
    */
   const getUserRooms = useCallback(() => {
     if (!userId) return []
-    return rooms.filter((room) =>
-      room.users?.some((user) => user.userId === userId)
-    )
+    return rooms.filter((room) => room.users?.some((user) => roomUserId(user) === userId))
   }, [rooms, userId])
 
   /**
@@ -276,7 +284,7 @@ export function useRoom(options: UseRoomOptions = {}) {
    */
   const isInRoom = useCallback((): boolean => {
     if (!currentRoom || !userId) return false
-    return currentRoom.users?.some((user) => user.userId === userId) || false
+    return currentRoom.users?.some((user) => roomUserId(user) === userId) || false
   }, [currentRoom, userId])
 
   /**
