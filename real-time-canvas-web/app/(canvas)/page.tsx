@@ -6,40 +6,89 @@
  * browsing active collaboration sessions, or joining existing canvases via ID.
  */
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import { useRoom } from '@/hooks/useRoom'
 import { RoomList } from '@/components/room/RoomList'
 import { JoinRoomDialog } from '@/components/room/JoinRoomDialog'
+import { CreateRoomDialog } from '@/components/room/CreateRoomDialog'
 
 export default function CanvasPage() {
   const router = useRouter()
-  const { username, guestMode, logout } = useAuth()
+  const { isAuthenticated, username, guestMode, logout, checkAuth } = useAuth()
+  const { currentRoom, createRoom } = useRoom()
 
   // Modal states
   const [isJoinDialogOpen, setIsJoinDialogOpen] = useState(false)
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isCreating, setIsCreating] = useState(false)
+
+  // Resolve auth once before deciding whether to gate this page — avoids a
+  // flash of the dashboard for a signed-out visitor before redirecting.
+  const [authChecked, setAuthChecked] = useState(false)
+  useEffect(() => {
+    checkAuth().finally(() => setAuthChecked(true))
+  }, [checkAuth])
+
+  useEffect(() => {
+    if (authChecked && !isAuthenticated) {
+      router.push('/login')
+    }
+  }, [authChecked, isAuthenticated, router])
+
+  // Auto-resume an in-progress room session (e.g. a reload) instead of
+  // stranding the user back on the dashboard.
+  useEffect(() => {
+    if (currentRoom) {
+      router.push(`/room/${currentRoom.id}`)
+    }
+  }, [currentRoom, router])
 
   // Navigate directly into selected room
   const handleSelectRoom = useCallback(
     (roomId: string) => {
-      router.push(`/canvas/${roomId}`)
+      router.push(`/room/${roomId}`)
     },
     [router]
   )
 
-  // Quick Room Creation Action
+  // One-click room creation — skips the naming dialog for speed, using the
+  // real room-creation API (this used to fabricate a client-side room id
+  // and navigate straight to it, which pointed at a room that never
+  // existed server-side).
   const handleQuickCreateRoom = useCallback(async () => {
     setIsCreating(true)
     try {
-      // Generate unique room ID
-      const newRoomId = `room-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`
-      router.push(`/canvas/${newRoomId}`)
+      const room = await createRoom(`Untitled Canvas ${new Date().toLocaleDateString()}`, {
+        isPrivate: false,
+      })
+      if (room) {
+        router.push(`/room/${room.id}`)
+      }
     } catch (error) {
       console.error('Failed to create room:', error)
+    } finally {
       setIsCreating(false)
     }
-  }, [router])
+  }, [createRoom, router])
+
+  const handleRoomCreated = useCallback(
+    (roomId: string) => {
+      setIsCreateDialogOpen(false)
+      router.push(`/room/${roomId}`)
+    },
+    [router]
+  )
+
+  if (!authChecked || !isAuthenticated) {
+    return (
+      <div className="relative flex items-center justify-center min-h-screen w-screen bg-slate-950 text-slate-100">
+        <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] opacity-40 pointer-events-none z-0" />
+        <div className="relative z-10 w-10 h-10 rounded-full border-2 border-indigo-500/20 border-t-indigo-500 animate-spin" />
+      </div>
+    )
+  }
 
   return (
     <div className="relative min-h-screen w-screen bg-slate-950 text-slate-100 font-sans select-none overflow-x-hidden flex flex-col">
@@ -98,7 +147,7 @@ export default function CanvasPage() {
               Collaborate without boundaries
             </h2>
             <p className="text-sm text-slate-400 leading-relaxed">
-              Create an infinite canvas room, invite your team, manipulate physics objects, 
+              Create an infinite canvas room, invite your team, manipulate physics objects,
               and record time-travel replays in real-time.
             </p>
 
@@ -144,7 +193,7 @@ export default function CanvasPage() {
                 </h3>
               </div>
               <button
-                onClick={handleQuickCreateRoom}
+                onClick={() => setIsCreateDialogOpen(true)}
                 className="text-xs text-indigo-400 hover:text-indigo-300 transition-colors font-mono cursor-pointer"
               >
                 + Create New
@@ -155,7 +204,7 @@ export default function CanvasPage() {
             <RoomList
               onSelectRoom={handleSelectRoom}
               onJoinRoom={() => setIsJoinDialogOpen(true)}
-              onCreateRoom={handleQuickCreateRoom}
+              onCreateRoom={() => setIsCreateDialogOpen(true)}
             />
           </div>
 
@@ -205,7 +254,14 @@ export default function CanvasPage() {
       <JoinRoomDialog
         isOpen={isJoinDialogOpen}
         onClose={() => setIsJoinDialogOpen(false)}
-        onSuccess={(roomId) => router.push(`/canvas/${roomId}`)}
+        onSuccess={(roomId) => router.push(`/room/${roomId}`)}
+      />
+
+      {/* CREATE ROOM MODAL */}
+      <CreateRoomDialog
+        isOpen={isCreateDialogOpen}
+        onClose={() => setIsCreateDialogOpen(false)}
+        onSuccess={handleRoomCreated}
       />
     </div>
   )
