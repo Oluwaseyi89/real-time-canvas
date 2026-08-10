@@ -89,10 +89,21 @@ func (h *Hub) handleRegister(client *Client) {
 	client.sendMessage(welcome)
 }
 
-// handleUnregister unregisters a client
+// handleUnregister unregisters a client. This is the single place a client
+// is torn down from — both ReadPump's error path (via the Unregister
+// channel) and the idle-client sweep below route through it, so there's one
+// piece of removal logic instead of two that can drift or double-close.
+// Safe to call more than once for the same client (e.g. ReadPump erroring
+// out right as the idle sweep was already tearing the same client down):
+// the second call finds nothing left to remove and Close() itself is a
+// no-op past the first call.
 func (h *Hub) handleUnregister(client *Client) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
+
+	if _, exists := h.Clients[client.ID]; !exists {
+		return
+	}
 
 	// Remove from rooms
 	if client.RoomID != "" {
@@ -208,26 +219,39 @@ func (h *Hub) GetRoomClientCount(roomID string) int {
 	return len(roomClients)
 }
 
-// cleanupInactiveClients removes inactive clients
+// cleanupInactiveClients finds idle clients and tears them down through
+// handleUnregister — the same path ReadPump's error handler uses — instead
+// of duplicating the removal logic here and calling client.Close() directly.
+// That duplication was the root of the double-close panic: this ticker (on
+// the hub's own goroutine) and a client's own ReadPump (on its own
+// goroutine) could each independently decide to close the same client,
+// and closing an already-closed channel panics. Since that panic ran on the
+// hub's single goroutine, it took down real-time collaboration for every
+// room, not just the idle one.
+//
+// Candidates are collected under a read lock and released before calling
+// handleUnregister, which takes its own write lock — cleanupInactiveClients
+// runs on the hub's own goroutine (the ticker case in Run's select loop),
+// so holding the lock across that call would self-deadlock.
 func (h *Hub) cleanupInactiveClients() {
-	h.mu.Lock()
-	defer h.mu.Unlock()
-
 	now := time.Now()
 	timeout := 5 * time.Minute
 
+	h.mu.RLock()
+	inactive := make([]*Client, 0)
 	for _, client := range h.Clients {
 		client.mu.RLock()
 		lastSeen := client.LastSeen
 		client.mu.RUnlock()
 
 		if now.Sub(lastSeen) > timeout {
-			log.Printf("[WebSocket] Cleaning up inactive client %s", client.ID)
-			if client.RoomID != "" {
-				h.removeClientFromRoom(client.RoomID, client)
-			}
-			delete(h.Clients, client.ID)
-			client.Close()
+			inactive = append(inactive, client)
 		}
+	}
+	h.mu.RUnlock()
+
+	for _, client := range inactive {
+		log.Printf("[WebSocket] Cleaning up inactive client %s", client.ID)
+		h.handleUnregister(client)
 	}
 }
