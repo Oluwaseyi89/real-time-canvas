@@ -37,7 +37,16 @@ export default function CanvasRoomPage() {
   const params = useParams()
   const router = useRouter()
   const roomId = params.roomId as string
-  const { username } = useAuth()
+  const { userId: authUserId, username } = useAuth()
+  // The real authenticated user id — not a per-mount random string. A
+  // random per-tab id here used to mean the server (once it started
+  // validating WS room membership) could never find this user in
+  // room_users, since REST joins register the *real* id; every WS connect
+  // failed membership validation for a room the user had genuinely joined.
+  const userId = authUserId || ''
+  // Read once at mount: by the time this page renders, login already
+  // happened on a previous page/navigation, so localStorage is populated.
+  const [token] = useState(() => (typeof window !== 'undefined' ? localStorage.getItem('authToken') || '' : ''))
   const { currentRoom, joinRoom, leaveRoom, isInRoom } = useRoom()
 
   // Control State
@@ -46,7 +55,6 @@ export default function CanvasRoomPage() {
   const [isPhysicsOpen, setIsPhysicsOpen] = useState(false)
   const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
-  const [userId] = useState(() => `user-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`)
 
   const canvasElementRef = useRef<HTMLCanvasElement | null>(null)
   const lastCursorPos = useRef<{ x: number; y: number } | null>(null)
@@ -190,6 +198,7 @@ export default function CanvasRoomPage() {
     roomId,
     userId,
     username: username || 'Guest',
+    token,
     autoConnect: false,
     onConnect: () => {
       if (offlineReady) {
@@ -314,13 +323,13 @@ export default function CanvasRoomPage() {
 
   // Manage WebSocket Connection
   useEffect(() => {
-    if (isReady && username && isInRoom) {
+    if (isReady && username && isInRoom && token) {
       connect()
     }
     return () => {
       disconnect()
     }
-  }, [isReady, username, isInRoom, connect, disconnect])
+  }, [isReady, username, isInRoom, token, connect, disconnect])
 
   // Attach Canvas Mouse Listeners
   useEffect(() => {

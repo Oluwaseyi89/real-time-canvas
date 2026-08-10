@@ -1,10 +1,12 @@
 package handlers
 
 import (
+	"log"
 	"net/http"
 
 	"real-time-canvas/real-time-canvas-service/internal/models/dto"
 	"real-time-canvas/real-time-canvas-service/internal/services"
+	jwtpkg "real-time-canvas/real-time-canvas-service/pkg/jwt"
 
 	"github.com/gin-gonic/gin"
 )
@@ -12,11 +14,24 @@ import (
 // AuthHandler handles authentication endpoints
 type AuthHandler struct {
 	userService *services.UserService
+	jwtService  *jwtpkg.Service
 }
 
 // NewAuthHandler creates a new auth handler
-func NewAuthHandler(userService *services.UserService) *AuthHandler {
-	return &AuthHandler{userService: userService}
+func NewAuthHandler(userService *services.UserService, jwtService *jwtpkg.Service) *AuthHandler {
+	return &AuthHandler{userService: userService, jwtService: jwtService}
+}
+
+// issueToken mints a token for the response, or logs and leaves it blank on
+// failure rather than failing the whole request — the account action itself
+// (register/login/guest) already succeeded by this point.
+func (h *AuthHandler) issueToken(userID, username string) string {
+	token, err := h.jwtService.GenerateToken(userID, username)
+	if err != nil {
+		log.Printf("[AuthHandler] Failed to issue token for user %s: %v", userID, err)
+		return ""
+	}
+	return token
 }
 
 // Register handles user registration
@@ -33,7 +48,9 @@ func (h *AuthHandler) Register(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusCreated, dto.ToUserResponse(user.ID, user.Username, user.IsGuest, user.LastSeen))
+	resp := dto.ToUserResponse(user.ID, user.Username, user.IsGuest, user.LastSeen)
+	resp.Token = h.issueToken(user.ID, user.Username)
+	c.JSON(http.StatusCreated, resp)
 }
 
 // Login handles user login
@@ -50,7 +67,9 @@ func (h *AuthHandler) Login(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, dto.ToUserResponse(user.ID, user.Username, user.IsGuest, user.LastSeen))
+	resp := dto.ToUserResponse(user.ID, user.Username, user.IsGuest, user.LastSeen)
+	resp.Token = h.issueToken(user.ID, user.Username)
+	c.JSON(http.StatusOK, resp)
 }
 
 // GuestLogin handles guest login
@@ -67,7 +86,9 @@ func (h *AuthHandler) GuestLogin(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, dto.ToUserResponse(user.ID, user.Username, user.IsGuest, user.LastSeen))
+	resp := dto.ToUserResponse(user.ID, user.Username, user.IsGuest, user.LastSeen)
+	resp.Token = h.issueToken(user.ID, user.Username)
+	c.JSON(http.StatusOK, resp)
 }
 
 // GetProfile gets the current user profile

@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"time"
 
 	"real-time-canvas/real-time-canvas-service/api"
 	"real-time-canvas/real-time-canvas-service/internal/config"
@@ -10,12 +11,18 @@ import (
 	"real-time-canvas/real-time-canvas-service/internal/repository/postgres"
 	"real-time-canvas/real-time-canvas-service/internal/services"
 	"real-time-canvas/real-time-canvas-service/internal/websocket"
+	jwtpkg "real-time-canvas/real-time-canvas-service/pkg/jwt"
 	redisPkg "real-time-canvas/real-time-canvas-service/pkg/redis"
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 )
+
+// defaultJWTSecret is config.Load's fallback when JWT_SECRET isn't set. Real
+// deployments must override it — signing tokens with a published default
+// would make every token forgeable.
+const defaultJWTSecret = "your-secret-key"
 
 func main() {
 	// Load environment variables
@@ -33,6 +40,11 @@ func main() {
 	if cfg.Environment == "production" {
 		gin.SetMode(gin.ReleaseMode)
 	}
+
+	if cfg.Environment == "production" && cfg.JWTSecret == defaultJWTSecret {
+		log.Fatal("JWT_SECRET must be set to a real secret in production")
+	}
+	jwtService := jwtpkg.NewService(cfg.JWTSecret, 24*time.Hour)
 
 	// Initialize database connections
 	if err := cfg.InitDatabase(); err != nil {
@@ -66,20 +78,20 @@ func main() {
 	canvasService := services.NewCanvasService(canvasRepo, roomRepo, userRepo)
 
 	// Initialize handlers
-	authHandler := handlers.NewAuthHandler(userService)
+	authHandler := handlers.NewAuthHandler(userService, jwtService)
 	roomHandler := handlers.NewRoomHandler(roomService)
 	canvasHandler := handlers.NewCanvasHandler(canvasService)
 
 	// Initialize WebSocket hub
 	hub := websocket.NewHub(canvasService)
-	wsHandler := handlers.NewWebSocketHandler(hub, roomService)
+	wsHandler := handlers.NewWebSocketHandler(hub, roomService, jwtService)
 
 	// Start WebSocket hub in a goroutine
 	go hub.Run()
 	log.Println("WebSocket hub started")
 
 	// Setup router
-	router := api.SetupRouter(authHandler, roomHandler, canvasHandler, wsHandler)
+	router := api.SetupRouter(authHandler, roomHandler, canvasHandler, wsHandler, jwtService)
 
 	// Start server
 	port := os.Getenv("PORT")

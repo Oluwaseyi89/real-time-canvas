@@ -13,6 +13,8 @@ interface UseWebSocketOptions {
   roomId: string
   userId: string
   username: string
+  /** Signed JWT sent as ?token= on the WS upgrade — the server's only source of identity for this connection. */
+  token: string
   autoConnect?: boolean
   reconnectAttempts?: number
   reconnectDelay?: number
@@ -30,6 +32,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
     roomId,
     userId,
     username,
+    token,
     autoConnect = true,
     reconnectAttempts = 0,
     reconnectDelay = 1000,
@@ -72,6 +75,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
       roomId,
       userId,
       username,
+      token,
       reconnectAttempts,
       reconnectDelay,
       maxReconnectAttempts,
@@ -113,6 +117,7 @@ export function useWebSocket(options: UseWebSocketOptions) {
     roomId,
     userId,
     username,
+    token,
     autoConnect,
     reconnectAttempts,
     reconnectDelay,
