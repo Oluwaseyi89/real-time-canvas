@@ -28,6 +28,10 @@ type CanvasObjectResponse struct {
 
 // CreateObjectRequest represents object creation request
 type CreateObjectRequest struct {
+	// ID is optional. Left empty, the database generates one (REST create).
+	// The WebSocket path sets it explicitly so the persisted row matches the
+	// UUID the client already generated and broadcast to other clients.
+	ID        string                 `json:"id,omitempty"`
 	RoomID    string                 `json:"roomId" binding:"required"`
 	Type      string                 `json:"type" binding:"required"`
 	Data      map[string]interface{} `json:"data"`

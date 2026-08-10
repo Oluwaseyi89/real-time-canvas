@@ -76,6 +76,9 @@ func (s *CanvasService) CreateObject(userID, roomID string, req *dto.CreateObjec
 		Rotation:   req.Rotation,
 		ZIndex:     maxZIndex + 1,
 	}
+	if req.ID != "" {
+		obj.ID = req.ID
+	}
 
 	err = s.canvasRepo.Create(ctx, obj)
 	if err != nil {

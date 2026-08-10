@@ -5,6 +5,8 @@ import (
 	"sync"
 	"time"
 
+	"real-time-canvas/real-time-canvas-service/internal/models/dto"
+
 	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 )
@@ -164,6 +166,7 @@ func (c *Client) handleMessage(msg *WebSocketMessage) {
 			c.sendError("invalid_payload", "Failed to parse object create payload")
 			return
 		}
+		c.persistObjectCreate(payload)
 		c.broadcastToRoom(msg)
 
 	case MsgObjectUpdate:
@@ -172,6 +175,7 @@ func (c *Client) handleMessage(msg *WebSocketMessage) {
 			c.sendError("invalid_payload", "Failed to parse object update payload")
 			return
 		}
+		c.persistObjectUpdate(payload)
 		c.broadcastToRoom(msg)
 
 	case MsgObjectDelete:
@@ -180,6 +184,7 @@ func (c *Client) handleMessage(msg *WebSocketMessage) {
 			c.sendError("invalid_payload", "Failed to parse object delete payload")
 			return
 		}
+		c.persistObjectDelete(payload)
 		c.broadcastToRoom(msg)
 
 	case MsgPhysicsThrow, MsgPhysicsCollision, MsgPhysicsAttract, MsgPhysicsRepel:
@@ -303,6 +308,72 @@ func (c *Client) broadcastToRoom(msg *WebSocketMessage) {
 		return
 	}
 	c.Hub.BroadcastToRoom(c.RoomID, msg)
+}
+
+// persistObjectCreate saves a newly created object so it survives past the
+// live broadcast (a REST GET /rooms/:id/objects after reload previously saw
+// nothing WS-only clients had created). Persistence failures are logged, not
+// fatal — a DB hiccup shouldn't stop the live view from staying in sync.
+func (c *Client) persistObjectCreate(payload ObjectCreatePayload) {
+	if c.Hub.CanvasService == nil || c.RoomID == "" {
+		return
+	}
+
+	req := &dto.CreateObjectRequest{
+		ID:        payload.ObjectID,
+		RoomID:    c.RoomID,
+		Type:      payload.Type,
+		Data:      payload.Data,
+		PositionX: payload.Position.X,
+		PositionY: payload.Position.Y,
+	}
+
+	if _, err := c.Hub.CanvasService.CreateObject(c.UserID, c.RoomID, req); err != nil {
+		log.Printf("[WebSocket] Failed to persist object create %s: %v", payload.ObjectID, err)
+	}
+}
+
+// persistObjectUpdate saves object changes (move/resize/style edits). The
+// payload carries a full Fabric object dump, same as create's Data field;
+// left/top/width/height/angle are additionally lifted into their own
+// columns to match how the REST update path stores them.
+func (c *Client) persistObjectUpdate(payload ObjectUpdatePayload) {
+	if c.Hub.CanvasService == nil {
+		return
+	}
+
+	req := &dto.UpdateObjectRequest{Data: payload.Updates}
+	if left, ok := payload.Updates["left"].(float64); ok {
+		req.PositionX = &left
+	}
+	if top, ok := payload.Updates["top"].(float64); ok {
+		req.PositionY = &top
+	}
+	if width, ok := payload.Updates["width"].(float64); ok {
+		req.Width = &width
+	}
+	if height, ok := payload.Updates["height"].(float64); ok {
+		req.Height = &height
+	}
+	if angle, ok := payload.Updates["angle"].(float64); ok {
+		req.Rotation = &angle
+	}
+
+	if _, err := c.Hub.CanvasService.UpdateObject(payload.ObjectID, c.UserID, req); err != nil {
+		log.Printf("[WebSocket] Failed to persist object update %s: %v", payload.ObjectID, err)
+	}
+}
+
+// persistObjectDelete removes an object from storage to match its removal
+// from the live canvas.
+func (c *Client) persistObjectDelete(payload ObjectDeletePayload) {
+	if c.Hub.CanvasService == nil {
+		return
+	}
+
+	if err := c.Hub.CanvasService.DeleteObject(payload.ObjectID, c.UserID); err != nil {
+		log.Printf("[WebSocket] Failed to persist object delete %s: %v", payload.ObjectID, err)
+	}
 }
 
 // sendMessage sends a message directly to the client

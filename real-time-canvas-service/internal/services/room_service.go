@@ -87,6 +87,12 @@ func (s *RoomService) GetRoomByInviteCode(code string) (*models.Room, error) {
 	return s.roomRepo.FindByInviteCode(ctx, code)
 }
 
+// IsUserInRoom checks whether a user is a member of a room
+func (s *RoomService) IsUserInRoom(roomID, userID string) (bool, error) {
+	ctx := context.Background()
+	return s.roomRepo.IsUserInRoom(ctx, roomID, userID)
+}
+
 // GetUserRooms gets all rooms for a user
 func (s *RoomService) GetUserRooms(userID string) ([]models.Room, error) {
 	ctx := context.Background()

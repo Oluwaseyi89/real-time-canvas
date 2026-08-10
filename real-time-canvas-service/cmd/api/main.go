@@ -71,8 +71,8 @@ func main() {
 	canvasHandler := handlers.NewCanvasHandler(canvasService)
 
 	// Initialize WebSocket hub
-	hub := websocket.NewHub()
-	wsHandler := handlers.NewWebSocketHandler(hub)
+	hub := websocket.NewHub(canvasService)
+	wsHandler := handlers.NewWebSocketHandler(hub, roomService)
 
 	// Start WebSocket hub in a goroutine
 	go hub.Run()

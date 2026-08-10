@@ -6,6 +6,7 @@ import (
 	"math/big"
 	"net/http"
 
+	"real-time-canvas/real-time-canvas-service/internal/services"
 	ws "real-time-canvas/real-time-canvas-service/internal/websocket"
 
 	"github.com/gin-gonic/gin"
@@ -22,12 +23,13 @@ var upgrader = websocket.Upgrader{
 
 // WebSocketHandler handles WebSocket connections
 type WebSocketHandler struct {
-	hub *ws.Hub
+	hub         *ws.Hub
+	roomService *services.RoomService
 }
 
 // NewWebSocketHandler creates a new WebSocket handler
-func NewWebSocketHandler(hub *ws.Hub) *WebSocketHandler {
-	return &WebSocketHandler{hub: hub}
+func NewWebSocketHandler(hub *ws.Hub, roomService *services.RoomService) *WebSocketHandler {
+	return &WebSocketHandler{hub: hub, roomService: roomService}
 }
 
 // HandleWebSocket handles WebSocket connections
@@ -46,10 +48,26 @@ func (h *WebSocketHandler) HandleWebSocket(c *gin.Context) {
 		username = "Guest"
 	}
 
-	// Get room ID from query
+	// Get room ID from query — no "default" fallback: a room-less socket has
+	// no membership to validate and nothing legitimate to join.
 	roomID := c.Query("roomId")
 	if roomID == "" {
-		roomID = "default"
+		c.JSON(http.StatusBadRequest, gin.H{"error": "roomId is required"})
+		return
+	}
+
+	// Reject joins for users who aren't actually room members instead of
+	// trusting the client-supplied roomId outright. Clients become members
+	// via POST /rooms/:id/join (invite-code checked there) before they ever
+	// open this socket, so a legitimate client always passes this check.
+	inRoom, err := h.roomService.IsUserInRoom(roomID, userID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to validate room membership"})
+		return
+	}
+	if !inRoom {
+		c.JSON(http.StatusForbidden, gin.H{"error": "not a member of this room"})
+		return
 	}
 
 	// Upgrade connection
@@ -66,22 +84,20 @@ func (h *WebSocketHandler) HandleWebSocket(c *gin.Context) {
 	h.hub.Register <- client
 
 	// Join room
-	if roomID != "" {
-		client.RoomID = roomID
-		h.hub.JoinRoom(roomID, client)
+	client.RoomID = roomID
+	h.hub.JoinRoom(roomID, client)
 
-		// Notify room users
-		joinMsg, _ := ws.NewMessage(
-			ws.MsgUserJoined,
-			roomID,
-			userID,
-			map[string]interface{}{
-				"userId":   userID,
-				"username": username,
-			},
-		)
-		h.hub.BroadcastToRoom(roomID, joinMsg)
-	}
+	// Notify room users
+	joinMsg, _ := ws.NewMessage(
+		ws.MsgUserJoined,
+		roomID,
+		userID,
+		map[string]interface{}{
+			"userId":   userID,
+			"username": username,
+		},
+	)
+	h.hub.BroadcastToRoom(roomID, joinMsg)
 
 	// Start client pumps
 	go client.WritePump()
