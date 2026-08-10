@@ -4,6 +4,8 @@ import (
 	"log"
 	"sync"
 	"time"
+
+	"real-time-canvas/real-time-canvas-service/internal/services"
 )
 
 // Hub maintains the set of active clients and broadcasts messages
@@ -23,6 +25,11 @@ type Hub struct {
 	// Broadcast messages to a room
 	Broadcast chan *BroadcastMessage
 
+	// CanvasService persists object:create/update/delete alongside the
+	// live broadcast, so a page reload (REST GET) sees what WS clients
+	// already rendered instead of two uncoordinated views of the room.
+	CanvasService *services.CanvasService
+
 	mu sync.RWMutex
 }
 
@@ -33,13 +40,14 @@ type BroadcastMessage struct {
 }
 
 // NewHub creates a new WebSocket hub
-func NewHub() *Hub {
+func NewHub(canvasService *services.CanvasService) *Hub {
 	return &Hub{
-		Clients:    make(map[string]*Client),
-		Rooms:      make(map[string]map[string]*Client),
-		Register:   make(chan *Client),
-		Unregister: make(chan *Client),
-		Broadcast:  make(chan *BroadcastMessage, 256),
+		Clients:       make(map[string]*Client),
+		Rooms:         make(map[string]map[string]*Client),
+		Register:      make(chan *Client),
+		Unregister:    make(chan *Client),
+		Broadcast:     make(chan *BroadcastMessage, 256),
+		CanvasService: canvasService,
 	}
 }
 
