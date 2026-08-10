@@ -31,6 +31,28 @@
   50% { transform: translateY(-4px); }
 }
 
+/*
+ * `animate-in`/`fade-in`/`slide-in-from-*` classes appear throughout this
+ * codebase (modals, drawers) but nothing provides them — no
+ * tailwindcss-animate plugin is installed and no matching CSS is generated,
+ * so they're silently inert. These two are real, used by the shared
+ * Modal/Toast components below.
+ */
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes scale-in {
+  from { opacity: 0; transform: translate(-50%, -50%) scale(0.96); }
+  to { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+}
+
+@keyframes slide-in-right {
+  from { opacity: 0; transform: translateX(100%); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
 @layer base {
   * {
     box-sizing: border-box;
@@ -103,9 +125,21 @@
 
   .canvas-line-grid {
     background-size: 40px 40px;
-    background-image: 
+    background-image:
       linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
       linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  }
+
+  .animate-fade-in {
+    animation: fade-in 0.15s ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scale-in 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .animate-slide-in-right {
+    animation: slide-in-right 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   }
 }
 

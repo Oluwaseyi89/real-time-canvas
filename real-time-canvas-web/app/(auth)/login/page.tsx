@@ -8,11 +8,13 @@
 import { useState, useCallback, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import { Input } from '@/components/ui/Input'
+import { Button } from '@/components/ui/Button'
 
 export default function LoginPage() {
   const router = useRouter()
   const { loginAsGuest, username: currentUsername, error: authError } = useAuth()
-  
+
   const [usernameInput, setUsernameInput] = useState('')
   const [isLoading, setIsLoading] = useState(false)
   const [localError, setLocalError] = useState<string | null>(null)
@@ -89,47 +91,35 @@ export default function LoginPage() {
           }}
           className="space-y-4 text-xs"
         >
-          <div>
-            <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-400 mb-1.5">
-              Display Name
-            </label>
-            <input
-              type="text"
-              value={usernameInput}
-              onChange={(e) => {
-                setUsernameInput(e.target.value)
-                if (localError) setLocalError(null)
-              }}
-              placeholder="e.g., Alex Developer"
-              disabled={isLoading}
-              className="w-full bg-slate-900/80 border border-slate-800 rounded-xl px-4 py-3 text-slate-100 text-xs outline-none focus:border-indigo-500/80 focus:ring-1 focus:ring-indigo-500/50 transition-all placeholder:text-slate-600 font-medium"
-              autoFocus
-            />
-          </div>
+          <Input
+            label="Display Name"
+            value={usernameInput}
+            onChange={(e) => {
+              setUsernameInput(e.target.value)
+              if (localError) setLocalError(null)
+            }}
+            placeholder="e.g., Alex Developer"
+            disabled={isLoading}
+            autoFocus
+          />
 
-          {/* Error Alert */}
           {activeError && (
-            <div className="p-3 bg-rose-950/60 border border-rose-800/80 rounded-xl text-xs text-rose-200 flex items-center gap-2 animate-in fade-in">
+            <div className="p-3 bg-rose-950/60 border border-rose-800/80 rounded-xl text-xs text-rose-200 flex items-center gap-2">
               <span>⚠️</span>
               <span>{activeError}</span>
             </div>
           )}
 
-          {/* Submit Action Button */}
-          <button
+          <Button
             type="submit"
-            disabled={!usernameInput.trim() || isLoading}
-            className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-xl text-xs transition-colors shadow-lg shadow-indigo-950/50 border border-indigo-500/50 cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            fullWidth
+            size="lg"
+            disabled={!usernameInput.trim()}
+            isLoading={isLoading}
+            loadingText="Entering Workspace..."
           >
-            {isLoading ? (
-              <>
-                <span className="w-3.5 h-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
-                <span>Entering Workspace...</span>
-              </>
-            ) : (
-              <span>🚀 Enter Workspace</span>
-            )}
-          </button>
+            🚀 Enter Workspace
+          </Button>
         </form>
 
         {/* Divider */}
@@ -140,15 +130,10 @@ export default function LoginPage() {
         </div>
 
         {/* Quick Guest Action */}
-        <button
-          type="button"
-          onClick={handleGuestLogin}
-          disabled={isLoading}
-          className="w-full py-3 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 font-medium rounded-xl text-xs transition-colors cursor-pointer flex items-center justify-center gap-2 disabled:opacity-50"
-        >
+        <Button type="button" variant="secondary" fullWidth size="lg" disabled={isLoading} onClick={handleGuestLogin}>
           <span>👤</span>
           <span>Continue as Random Guest</span>
-        </button>
+        </Button>
 
         {/* Footer info */}
         <p className="text-[10px] text-slate-500 text-center font-mono mt-6">

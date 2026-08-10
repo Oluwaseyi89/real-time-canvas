@@ -6,9 +6,11 @@
  * complete with member counts, privacy badges, invite code actions, and creation triggers.
  */
 
-import { useState, useCallback } from 'react'
+import { useCallback } from 'react'
 import { useRoom } from '@/hooks/useRoom'
 import { useAuth } from '@/hooks/useAuth'
+import { Button } from '@/components/ui/Button'
+import { useToast } from '@/components/ui/Toast'
 
 interface RoomListProps {
   onSelectRoom?: (roomId: string) => void
@@ -25,20 +27,19 @@ export function RoomList({
 }: RoomListProps) {
   const { rooms, currentRoom, isLoading } = useRoom()
   const { username, userId } = useAuth()
-  const [copiedCode, setCopiedCode] = useState<string | null>(null)
+  const { toast } = useToast()
 
   const handleCopyCode = useCallback(
     async (code: string, e: React.MouseEvent) => {
       e.stopPropagation()
       try {
         await navigator.clipboard.writeText(code)
-        setCopiedCode(code)
-        setTimeout(() => setCopiedCode(null), 2000)
+        toast({ title: 'Invite code copied', variant: 'success' })
       } catch {
-        // Clipboard access unavailable
+        toast({ title: 'Could not copy code', variant: 'error' })
       }
     },
-    []
+    [toast]
   )
 
   // Loading skeleton layout
@@ -123,9 +124,7 @@ export function RoomList({
                           title="Copy Invite Code"
                         >
                           <span className="text-[10px]">Code: {room.inviteCode}</span>
-                          <span className="text-[10px]">
-                            {copiedCode === room.inviteCode ? '✓' : '📋'}
-                          </span>
+                          <span className="text-[10px]">📋</span>
                         </button>
                       )}
                     </div>
@@ -146,22 +145,14 @@ export function RoomList({
 
       {/* Persistent Action Buttons */}
       <div className="flex gap-2 pt-3 border-t border-slate-800/80">
-        <button
-          type="button"
-          onClick={onJoinRoom}
-          className="flex-1 px-3.5 py-2.5 bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-200 font-medium rounded-xl text-xs transition-colors cursor-pointer flex items-center justify-center gap-1.5"
-        >
+        <Button type="button" variant="secondary" fullWidth onClick={onJoinRoom}>
           <span>🚪</span>
           <span>Join Room</span>
-        </button>
-        <button
-          type="button"
-          onClick={onCreateRoom}
-          className="flex-1 px-3.5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white font-medium rounded-xl text-xs transition-colors shadow-lg shadow-indigo-950/50 border border-indigo-500/50 cursor-pointer flex items-center justify-center gap-1.5"
-        >
+        </Button>
+        <Button type="button" fullWidth onClick={onCreateRoom}>
           <span>✨</span>
           <span>Create Room</span>
-        </button>
+        </Button>
       </div>
     </div>
   )

@@ -8,6 +8,9 @@
 
 import { useState, useCallback } from 'react'
 import { useRoom } from '@/hooks/useRoom'
+import { Input } from '@/components/ui/Input'
+import { Button } from '@/components/ui/Button'
+import { useToast } from '@/components/ui/Toast'
 
 interface RoomInviteProps {
   className?: string
@@ -15,20 +18,21 @@ interface RoomInviteProps {
 
 export function RoomInvite({ className = '' }: RoomInviteProps) {
   const { currentRoom, getRoomInviteLink, getRoomInviteLinkWithCode, copyInviteLink } = useRoom()
-  const [isCopied, setIsCopied] = useState(false)
   const [showCode, setShowCode] = useState(false)
+  const { toast } = useToast()
 
-  const inviteLink = showCode 
-    ? getRoomInviteLinkWithCode() 
+  const inviteLink = showCode
+    ? getRoomInviteLinkWithCode()
     : getRoomInviteLink()
 
   const handleCopy = useCallback(async () => {
     const success = await copyInviteLink()
     if (success) {
-      setIsCopied(true)
-      setTimeout(() => setIsCopied(false), 2000)
+      toast({ title: 'Invite link copied', variant: 'success' })
+    } else {
+      toast({ title: 'Could not copy link', variant: 'error' })
     }
-  }, [copyInviteLink])
+  }, [copyInviteLink, toast])
 
   if (!currentRoom) return null
 
@@ -56,27 +60,19 @@ export function RoomInvite({ className = '' }: RoomInviteProps) {
       </div>
 
       {/* Invite Link & Copy Input Bar */}
-      <div className="flex gap-2">
-        <input
-          type="text"
-          value={inviteLink}
-          readOnly
-          className="flex-1 bg-slate-900/80 border border-slate-800 rounded-xl px-3 py-2 text-xs font-mono text-slate-300 outline-none focus:border-indigo-500/80 transition-colors cursor-text"
-          onClick={(e) => (e.target as HTMLInputElement).select()}
-        />
-        <button
-          type="button"
-          onClick={handleCopy}
-          className={`px-3.5 py-2 rounded-xl text-xs font-medium transition-all flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap shadow-lg ${
-            isCopied
-              ? 'bg-emerald-600 text-white border border-emerald-500/50 shadow-emerald-950/50'
-              : 'bg-indigo-600 hover:bg-indigo-500 text-white border border-indigo-500/50 shadow-indigo-950/50'
-          }`}
-        >
-          <span>{isCopied ? '✓' : '📋'}</span>
-          <span>{isCopied ? 'Copied' : 'Copy'}</span>
-        </button>
-      </div>
+      <Input
+        type="text"
+        value={inviteLink}
+        readOnly
+        className="font-mono cursor-text"
+        onClick={(e) => (e.target as HTMLInputElement).select()}
+        rightElement={
+          <Button type="button" onClick={handleCopy}>
+            <span>📋</span>
+            <span>Copy</span>
+          </Button>
+        }
+      />
 
       {/* Invite Code Sub-info */}
       {currentRoom.inviteCode && (
