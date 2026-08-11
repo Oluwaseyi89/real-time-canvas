@@ -64,21 +64,21 @@ export default function LoginPage() {
   const activeError = localError || authError
 
   return (
-    <div className="relative flex flex-col items-center justify-center min-h-screen w-screen bg-slate-950 text-slate-100 font-sans select-none overflow-hidden p-4">
+    <div className="relative flex flex-col items-center justify-center min-h-screen w-screen bg-slate-950 text-slate-100 font-sans select-none overflow-hidden p-4 sm:p-6">
       {/* Background Mesh Grid */}
       <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] opacity-40 pointer-events-none z-0" />
 
       {/* Main Glassmorphic Login Card */}
-      <div className="relative z-10 w-full max-w-md bg-slate-950/90 border border-slate-800/90 rounded-3xl p-8 shadow-2xl backdrop-blur-2xl">
+      <div className="relative z-10 w-full max-w-sm sm:max-w-md bg-slate-950/90 border border-slate-800/90 rounded-2xl sm:rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-2xl">
         {/* Branding Header */}
-        <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-2xl bg-indigo-950/60 border border-indigo-500/50 text-2xl shadow-lg shadow-indigo-950/50 mb-3">
+        <div className="text-center mb-6 sm:mb-8">
+          <div className="inline-flex items-center justify-center w-12 h-12 sm:w-14 sm:h-14 rounded-2xl bg-indigo-950/60 border border-indigo-500/50 text-xl sm:text-2xl shadow-lg shadow-indigo-950/50 mb-3">
             ✨
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-100">
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-100">
             Infinite Canvas
           </h1>
-          <p className="text-xs text-slate-400 font-mono mt-1.5">
+          <p className="text-[11px] sm:text-xs text-slate-400 font-mono mt-1.5">
             Real-time collaborative whiteboard & spatial workspace
           </p>
         </div>
@@ -89,7 +89,7 @@ export default function LoginPage() {
             e.preventDefault()
             handleLogin()
           }}
-          className="space-y-4 text-xs"
+          className="space-y-3 sm:space-y-4 text-xs"
         >
           <Input
             label="Display Name"
@@ -123,7 +123,7 @@ export default function LoginPage() {
         </form>
 
         {/* Divider */}
-        <div className="flex items-center gap-3 my-6">
+        <div className="flex items-center gap-3 my-5 sm:my-6">
           <div className="flex-1 h-px bg-slate-800/80" />
           <span className="text-[10px] font-mono text-slate-500 uppercase">Or</span>
           <div className="flex-1 h-px bg-slate-800/80" />
@@ -136,7 +136,7 @@ export default function LoginPage() {
         </Button>
 
         {/* Footer info */}
-        <p className="text-[10px] text-slate-500 text-center font-mono mt-6">
+        <p className="text-[10px] text-slate-500 text-center font-mono mt-5 sm:mt-6">
           No sign-up required • Instant real-time multi-user sync
         </p>
       </div>

@@ -98,7 +98,7 @@ export default function CanvasPage() {
       <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] opacity-40 pointer-events-none z-0" />
 
       {/* TOP GLASS NAVIGATION HEADER */}
-      <header className="relative z-10 w-full border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-2xl px-6 py-4 flex items-center justify-between">
+      <header className="relative z-10 w-full border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-2xl px-4 sm:px-6 py-4 flex items-center justify-between">
         {/* Brand Logo */}
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-indigo-950/80 border border-indigo-500/50 flex items-center justify-center text-xl shadow-lg shadow-indigo-950/50">
@@ -139,7 +139,7 @@ export default function CanvasPage() {
       {/* MAIN CONTAINER */}
       <main className="relative z-10 flex-1 max-w-6xl w-full mx-auto p-6 md:p-10 flex flex-col gap-8">
         {/* Hero Section Banner */}
-        <div className="relative rounded-3xl bg-gradient-to-r from-indigo-950/60 via-slate-900/80 to-slate-950 border border-indigo-500/30 p-8 shadow-2xl backdrop-blur-xl overflow-hidden">
+        <div className="relative rounded-3xl bg-gradient-to-r from-indigo-950/60 via-slate-900/80 to-slate-950 border border-indigo-500/30 p-5 sm:p-8 shadow-2xl backdrop-blur-xl overflow-hidden">
           <div className="max-w-2xl space-y-3">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs font-mono">
               <span>🚀</span>
