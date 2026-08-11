@@ -33,6 +33,11 @@ import { RoomInvite } from '@/components/room/RoomInvite'
 import { RoomInfo } from '@/components/room/RoomInfo'
 import { Object as FabricObject } from 'fabric'
 
+// Stable module-level reference so it never triggers the physics-init
+// effect below just because the component re-rendered — see the
+// usePhysics() call for why an inline object literal here was a real bug.
+const PHYSICS_GRAVITY = { x: 0, y: 1 }
+
 export default function CanvasRoomPage() {
   const params = useParams()
   const router = useRouter()
@@ -103,7 +108,7 @@ export default function CanvasRoomPage() {
         // locally, but don't re-record/re-queue/re-broadcast it as if it
         // were a brand-new local action (that would echo it back out and
         // misattribute it to this user).
-        if (physicsEngine) {
+        if (physicsEngine && useCanvasStore.getState().physicsEnabled) {
           addPhysicsBodyForObject(obj)
         }
         return
@@ -140,7 +145,12 @@ export default function CanvasRoomPage() {
         position,
       })
 
-      if (physicsEngine) {
+      // Static by default — this is a design canvas first, and every new
+      // object used to get a live gravity-affected physics body the
+      // instant it was placed, so it started drifting/falling before you
+      // could even select it. Objects only join the simulation once the
+      // user explicitly opts in via the Physics panel's toggle.
+      if (physicsEngine && useCanvasStore.getState().physicsEnabled) {
         addPhysicsBodyForObject(obj)
       }
     },
@@ -168,23 +178,42 @@ export default function CanvasRoomPage() {
     },
   })
 
+  // `send` isn't available until useWebSocket() below, and onCollision needs
+  // to stay referentially stable regardless — usePhysics()'s initEngine is a
+  // useCallback keyed on its onCollision option, and the physics-init effect
+  // further down depends on initEngine. A fresh arrow function here every
+  // render meant that effect fired every render too, tearing down and
+  // rebuilding the physics engine (and the canvas resources it touches)
+  // continuously instead of once — this ref lets onCollision stay stable
+  // while still always calling the latest send.
+  const sendRef = useRef<typeof send | null>(null)
+  const handleCollision = useCallback((bodyA: any, bodyB: any) => {
+    sendRef.current?.('physics:collision', {
+      objectId: bodyA.id,
+      targetId: bodyB.id,
+      force: 5,
+    })
+  }, [])
+
   // Physics Engine Setup
   const {
     engine: physicsEngine,
     isRunning: isPhysicsRunning,
     addBody,
+    removeBody,
     initEngine,
   } = usePhysics({
+    // usePhysics() never actually reads this option (dead prop on the hook
+    // itself) — the real, user-facing on/off switch is the canvas store's
+    // physicsEnabled, gating whether objects get bodies at all (see
+    // onObjectAdded and the sync effect below). autoStart just keeps the
+    // simulation loop ticking in the background so it's ready the instant
+    // physicsEnabled flips true; with no bodies attached while it's false,
+    // that loop has nothing to simulate and costs nothing to run.
     enabled: true,
-    gravity: { x: 0, y: 1 },
+    gravity: PHYSICS_GRAVITY,
     autoStart: true,
-    onCollision: (bodyA, bodyB) => {
-      send('physics:collision', {
-        objectId: bodyA.id,
-        targetId: bodyB.id,
-        force: 5,
-      })
-    },
+    onCollision: handleCollision,
   })
 
   // WebSocket Connection Setup — the single socket for this room session.
@@ -213,6 +242,12 @@ export default function CanvasRoomPage() {
     },
   })
 
+  // Keeps handleCollision (defined above, before `send` exists) calling the
+  // current send without itself needing to depend on it.
+  useEffect(() => {
+    sendRef.current = send
+  }, [send])
+
   // Real-time Collaboration Engine
   const { broadcastCursor, broadcastObjectCreate, broadcastObjectUpdate, broadcastObjectDelete } = useCollaboration({
     roomId,
@@ -227,6 +262,7 @@ export default function CanvasRoomPage() {
   // Live canvas object/physics sync — applies incoming object:create/update/
   // delete and physics:* messages to the Fabric canvas via WebSocketHandlers.
   const canvas = useCanvasStore((state) => state.canvas)
+  const physicsEnabled = useCanvasStore((state) => state.physicsEnabled)
   useEffect(() => {
     if (!client || !canvas) return
 
@@ -283,6 +319,34 @@ export default function CanvasRoomPage() {
     },
     [physicsEngine, addBody]
   )
+
+  // Syncs physics bodies to the room-wide physicsEnabled toggle (flipped by
+  // PhysicsControls' own "Active/Disabled" button, which only starts/stops
+  // the simulation loop — it has no idea about individual objects). Runs as
+  // an effect rather than inside a click handler so it stays correct no
+  // matter what flips the flag. Turning physics on gives every object
+  // currently on the canvas a body anchored right where it already sits —
+  // nothing teleports, only gravity applies from that point forward.
+  // Turning it off removes those bodies so objects freeze exactly where
+  // they are and go back to being plain, fully drag/resize-able Fabric
+  // objects with nothing fighting the user's own manipulation.
+  const prevPhysicsEnabledRef = useRef(physicsEnabled)
+  useEffect(() => {
+    if (prevPhysicsEnabledRef.current === physicsEnabled) return
+    prevPhysicsEnabledRef.current = physicsEnabled
+
+    if (!physicsEngine) return
+
+    const objects = useCanvasStore.getState().objects
+    if (physicsEnabled) {
+      objects.forEach((obj) => addPhysicsBodyForObject(obj))
+    } else {
+      objects.forEach((obj) => {
+        const id = (obj as any).id
+        if (id) removeBody(id)
+      })
+    }
+  }, [physicsEnabled, physicsEngine, addPhysicsBodyForObject, removeBody])
 
   // Mouse Movement Cursor Tracking
   const handleMouseMove = useCallback(
@@ -472,21 +536,21 @@ export default function CanvasRoomPage() {
       {/* EXPANDABLE DRAWERS & OVERLAYS */}
       {/* Physics Engine Control Drawer */}
       {isPhysicsOpen && (
-        <div className="absolute top-18 right-4 z-30 w-64 animate-in fade-in slide-in-from-top-3 duration-200">
+        <div className="absolute top-18 right-4 z-30 animate-slide-in-top">
           <PhysicsControls />
         </div>
       )}
 
       {/* Room Details Info Drawer */}
       {isRoomInfoOpen && (
-        <div className="absolute top-18 right-4 z-30 animate-in fade-in slide-in-from-top-3 duration-200">
+        <div className="absolute top-18 right-4 z-30 animate-slide-in-top">
           <RoomInfo />
         </div>
       )}
 
       {/* Live System Diagnostics / Telemetry Panel */}
       {isDiagnosticsOpen && (
-        <div className="absolute top-18 right-4 sm:right-auto sm:left-4 z-30 w-72 bg-slate-950/90 border border-slate-800/90 rounded-2xl p-4 text-xs font-mono text-slate-300 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-top-3 duration-200 space-y-2.5">
+        <div className="absolute top-18 right-4 sm:right-auto sm:left-4 z-30 w-72 bg-slate-950/90 border border-slate-800/90 rounded-2xl p-4 text-xs font-mono text-slate-300 shadow-2xl backdrop-blur-xl animate-slide-in-top space-y-2.5">
           <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
             <span className="font-semibold uppercase tracking-wider text-slate-100 text-[11px] flex items-center gap-1.5">
               <span>📡</span> Telemetry & Status
@@ -511,8 +575,8 @@ export default function CanvasRoomPage() {
 
             <div className="flex justify-between items-center bg-slate-900/60 p-2 rounded-lg border border-slate-800/60">
               <span className="text-slate-400">Physics Simulation</span>
-              <span className={isPhysicsRunning ? 'text-amber-400' : 'text-slate-500'}>
-                {isPhysicsRunning ? '⚡ 60 FPS' : '⏸️ Paused'}
+              <span className={physicsEnabled && isPhysicsRunning ? 'text-amber-400' : 'text-slate-500'}>
+                {physicsEnabled && isPhysicsRunning ? '⚡ 60 FPS' : '⏸️ Paused'}
               </span>
             </div>
 
@@ -573,7 +637,7 @@ export default function CanvasRoomPage() {
           <span>•</span>
           <span>Drag canvas to pan</span>
           <span>•</span>
-          <span>⚡ Physics enabled</span>
+          <span>{physicsEnabled ? '⚡ Physics enabled' : '⏸️ Physics off'}</span>
           <span>•</span>
           <span>📦 Offline sync active</span>
         </div>

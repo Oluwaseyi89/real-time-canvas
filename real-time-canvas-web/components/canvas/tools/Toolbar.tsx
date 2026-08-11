@@ -6,6 +6,7 @@ import { ShapeTool } from './ShapeTool'
 import { ImageTool } from './ImageTool'
 import { StickyNoteTool } from './StickyNoteTool'
 import { AudioTool } from './AudioTool'
+import { Tooltip } from '@/components/ui/Tooltip'
 
 export type ToolType = 'text' | 'shape' | 'image' | 'sticky' | 'audio' | null
 
@@ -127,7 +128,7 @@ export function Toolbar({ className = '' }: ToolbarProps) {
     <div className={`flex flex-col items-center gap-3 transition-all duration-200 ${className}`}>
       {/* Active Sub-Tool Popover Panel */}
       {activeTool && (
-        <div className="glass-panel p-3 rounded-2xl border border-slate-700/60 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-bottom-2 duration-150">
+        <div className="glass-panel p-3 rounded-2xl border border-slate-700/60 shadow-2xl backdrop-blur-xl animate-slide-in-bottom">
           {renderToolPanel()}
         </div>
       )}
@@ -135,24 +136,25 @@ export function Toolbar({ className = '' }: ToolbarProps) {
       {/* Main Glassmorphic Dock */}
       <div className="glass-panel p-1.5 rounded-2xl flex items-center gap-1 shadow-2xl border border-slate-700/60 backdrop-blur-xl">
         {/* Expand / Collapse Toggle Button */}
-        <button
-          onClick={() => {
-            setIsOpen(!isOpen)
-            if (isOpen) setActiveTool(null)
-          }}
-          className="p-2.5 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 transition-all active:scale-95"
-          title={isOpen ? 'Collapse toolbar' : 'Expand toolbar'}
-          aria-label={isOpen ? 'Collapse toolbar' : 'Expand toolbar'}
-        >
-          <svg
-            className={`w-4 h-4 transition-transform duration-300 ${isOpen ? 'rotate-0' : 'rotate-180'}`}
-            fill="none"
-            viewBox="0 0 24 24"
-            stroke="currentColor"
+        <Tooltip label={isOpen ? 'Collapse toolbar' : 'Expand toolbar'}>
+          <button
+            onClick={() => {
+              setIsOpen(!isOpen)
+              if (isOpen) setActiveTool(null)
+            }}
+            className="p-2.5 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 transition-all active:scale-95"
+            aria-label={isOpen ? 'Collapse toolbar' : 'Expand toolbar'}
           >
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-          </svg>
-        </button>
+            <svg
+              className={`w-4 h-4 transition-transform duration-300 ${isOpen ? 'rotate-0' : 'rotate-180'}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+            </svg>
+          </button>
+        </Tooltip>
 
         {isOpen && (
           <>
@@ -163,33 +165,24 @@ export function Toolbar({ className = '' }: ToolbarProps) {
               {TOOLS.map((tool) => {
                 const isActive = activeTool === tool.type
                 return (
-                  <button
-                    key={tool.type}
-                    onClick={() => toggleTool(tool.type)}
-                    className={`relative p-2.5 rounded-xl transition-all group flex items-center justify-center active:scale-95 ${
-                      isActive
-                        ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/40'
-                        : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
-                    }`}
-                    aria-label={`${tool.label} tool (${tool.shortcut})`}
-                  >
-                    {tool.icon(isActive)}
+                  <Tooltip key={tool.type} label={tool.label} shortcut={tool.shortcut}>
+                    <button
+                      onClick={() => toggleTool(tool.type)}
+                      className={`relative p-2.5 rounded-xl transition-all flex items-center justify-center active:scale-95 ${
+                        isActive
+                          ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/40'
+                          : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                      }`}
+                      aria-label={`${tool.label} tool (${tool.shortcut})`}
+                    >
+                      {tool.icon(isActive)}
 
-                    {/* Active state indicator dot */}
-                    {isActive && (
-                      <span className="absolute -bottom-1 w-1 h-1 rounded-full bg-white shadow-sm" />
-                    )}
-
-                    {/* Hover Tooltip */}
-                    <div className="absolute -top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-opacity duration-150 pointer-events-none z-50">
-                      <div className="bg-slate-900/95 text-slate-200 text-[11px] font-medium px-2 py-1 rounded-lg border border-slate-700/70 shadow-xl whitespace-nowrap flex items-center gap-1.5">
-                        <span>{tool.label}</span>
-                        <span className="text-[10px] text-slate-400 font-mono bg-slate-800 px-1 rounded border border-slate-700">
-                          {tool.shortcut}
-                        </span>
-                      </div>
-                    </div>
-                  </button>
+                      {/* Active state indicator dot */}
+                      {isActive && (
+                        <span className="absolute -bottom-1 w-1 h-1 rounded-full bg-white shadow-sm" />
+                      )}
+                    </button>
+                  </Tooltip>
                 )
               })}
             </div>

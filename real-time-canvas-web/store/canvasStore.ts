@@ -5,10 +5,20 @@
 
 import { create } from 'zustand'
 import { Canvas, Object as FabricObject } from 'fabric'
+import type { CanvasRenderer } from '@/lib/canvas/renderer'
 
 interface CanvasState {
   // Core state
   canvas: Canvas | null
+  // useCanvas() is called independently by the room page (which owns the
+  // real <canvas> element) *and* by every tool panel (TextTool, ShapeTool,
+  // ...), purely to get at addText/addRectangle/etc — each of those calls
+  // gets its own local, always-null renderer ref, since their refs never
+  // attach to real DOM. Storing the renderer here, the same way `canvas`
+  // already is, is what lets any of those call sites actually reach the one
+  // renderer the page created — without it, every tool's add call silently
+  // no-oped on its own dead local ref.
+  renderer: CanvasRenderer | null
   objects: FabricObject[]
   selectedObjects: string[]
   isReady: boolean
@@ -29,6 +39,7 @@ interface CanvasState {
 
   // Actions
   setCanvas: (canvas: Canvas) => void
+  setRenderer: (renderer: CanvasRenderer | null) => void
   addObject: (obj: FabricObject) => void
   removeObject: (id: string) => void
   updateObject: (id: string, props: Partial<FabricObject>) => void
@@ -51,6 +62,7 @@ interface CanvasState {
 export const useCanvasStore = create<CanvasState>((set, get) => ({
   // Initial state
   canvas: null,
+  renderer: null,
   objects: [],
   selectedObjects: [],
   isReady: false,
@@ -60,7 +72,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   activeTool: null,
   isDrawing: false,
   isDragging: false,
-  physicsEnabled: true,
+  // Off by default — this is a design canvas first. Objects only become
+  // subject to gravity/physics once the user explicitly opts in via the
+  // Physics panel's toggle (see the room page's physicsEnabled sync effect).
+  physicsEnabled: false,
   physicsGravity: { x: 0, y: 1 },
 
   /**
@@ -68,6 +83,13 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
    */
   setCanvas: (canvas: Canvas) => {
     set({ canvas, isReady: true })
+  },
+
+  /**
+   * Set the shared renderer instance
+   */
+  setRenderer: (renderer: CanvasRenderer | null) => {
+    set({ renderer })
   },
 
   /**

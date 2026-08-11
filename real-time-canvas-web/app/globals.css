@@ -35,8 +35,10 @@
  * `animate-in`/`fade-in`/`slide-in-from-*` classes appear throughout this
  * codebase (modals, drawers) but nothing provides them — no
  * tailwindcss-animate plugin is installed and no matching CSS is generated,
- * so they're silently inert. These two are real, used by the shared
- * Modal/Toast components below.
+ * so they're silently inert. These are real, hand-rolled replacements used
+ * by the shared Modal/Toast components and the toolbar/zoom popovers and
+ * top-right drawers below, so every panel's entrance actually animates
+ * instead of just popping into place.
  */
 @keyframes fade-in {
   from { opacity: 0; }
@@ -51,6 +53,29 @@
 @keyframes slide-in-right {
   from { opacity: 0; transform: translateX(100%); }
   to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes slide-in-bottom {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes slide-in-top {
+  from { opacity: 0; transform: translateY(-12px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/*
+ * `.animate-radar-scan` is used by the minimap (a 200%-tall gradient band
+ * swept top-to-bottom to read as a radar scan) but — same story as the
+ * animate-in classes above — nothing defined it. Its would-be source,
+ * tailwind.config.ts, is dead: this project's Tailwind v4 config is
+ * CSS-first (`@import 'tailwindcss'` + `@theme` above), and nothing here
+ * pulls that file in via `@config`, so it was never actually wired up.
+ */
+@keyframes radar-scan {
+  0% { transform: translateY(-50%); }
+  100% { transform: translateY(0%); }
 }
 
 @layer base {
@@ -144,6 +169,18 @@
 
   .animate-slide-in-right {
     animation: slide-in-right 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .animate-slide-in-bottom {
+    animation: slide-in-bottom 0.15s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .animate-slide-in-top {
+    animation: slide-in-top 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+
+  .animate-radar-scan {
+    animation: radar-scan 3s linear infinite;
   }
 }
 
