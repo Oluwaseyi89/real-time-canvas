@@ -82,7 +82,7 @@ export function TimeTravelControls({ className = '' }: TimeTravelControlsProps) 
       <button
         type="button"
         onClick={() => setIsOpen(true)}
-        className="fixed bottom-24 left-6 z-40 p-2.5 bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/80 rounded-2xl shadow-xl backdrop-blur-md transition-all active:scale-95 flex items-center gap-2 group"
+        className="p-2.5 bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/80 rounded-2xl shadow-xl backdrop-blur-md transition-all active:scale-95 flex items-center gap-2 group"
         title="Show Time Travel Controls"
       >
         <svg className="w-5 h-5 text-indigo-400 group-hover:rotate-12 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -95,7 +95,7 @@ export function TimeTravelControls({ className = '' }: TimeTravelControlsProps) 
 
   return (
     <div
-      className={`fixed bottom-24 left-6 z-40 w-80 p-3.5 rounded-2xl bg-slate-900/90 backdrop-blur-md border border-slate-700/70 shadow-2xl text-slate-200 select-none ${className}`}
+      className={`w-80 p-3.5 rounded-2xl bg-slate-900/90 backdrop-blur-md border border-slate-700/70 shadow-2xl text-slate-200 select-none ${className}`}
     >
       {/* Header */}
       <div className="flex justify-between items-center mb-3">

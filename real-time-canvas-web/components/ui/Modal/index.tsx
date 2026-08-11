@@ -41,7 +41,7 @@ export function Modal({ isOpen, onClose, title, icon, children, footer, size = '
           // documented way to suppress the "missing description" a11y
           // warning without inventing a description no one asked for.
           aria-describedby={undefined}
-          className={`fixed left-1/2 top-1/2 z-50 w-full ${SIZE_CLASSES[size]} p-4 outline-none animate-scale-in`}
+          className={`fixed left-1/2 top-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 ${SIZE_CLASSES[size]} p-4 outline-none animate-scale-in`}
         >
           <div className="bg-slate-950/95 border border-slate-800 rounded-2xl shadow-2xl p-6 text-slate-100 backdrop-blur-xl max-h-[85vh] overflow-y-auto">
             <div className="flex justify-between items-center pb-4 border-b border-slate-800/80 mb-5">

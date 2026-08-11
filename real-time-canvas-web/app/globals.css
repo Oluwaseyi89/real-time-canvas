@@ -60,10 +60,14 @@
     padding: 0;
   }
 
+  /* No site-wide height/overflow lock here on purpose — that used to pin
+     html/body to exactly 100vh with overflow: hidden, which is what the
+     canvas room page wants (it already sets its own h-screen overflow-hidden
+     root) but silently clipped every other page's content with no way to
+     scroll to it. Regular pages (dashboard, login) get normal document
+     scroll; the canvas room page remains non-scrolling via its own root. */
   html, body {
-    width: 100vw;
-    height: 100vh;
-    overflow: hidden;
+    min-height: 100vh;
     background-color: var(--color-background);
     color: var(--color-foreground);
     font-family: system-ui, -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;

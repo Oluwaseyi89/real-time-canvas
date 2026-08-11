@@ -102,17 +102,17 @@ export function ImageTool({ onAddImage }: ImageToolProps) {
   }
 
   return (
-    <div className="flex flex-col gap-3 p-3 bg-white rounded-lg shadow-md border border-slate-200 min-w-[300px]">
+    <div className="flex flex-col gap-3 p-1 min-w-[300px]">
       {/* Mode Selector Tabs */}
-      <div className="flex bg-slate-100 p-0.5 rounded-md text-xs font-medium text-slate-600">
+      <div className="flex bg-slate-900/80 p-1 rounded-xl border border-slate-700/80 text-xs font-medium text-slate-400">
         <button
           type="button"
           onClick={() => {
             setTab('file')
             setError(null)
           }}
-          className={`flex-1 py-1 text-center rounded-sm transition-all ${
-            tab === 'file' ? 'bg-white text-slate-900 shadow-sm' : 'hover:text-slate-900'
+          className={`flex-1 py-1 text-center rounded-lg transition-all ${
+            tab === 'file' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' : 'hover:text-slate-200'
           }`}
         >
           Upload File
@@ -123,8 +123,8 @@ export function ImageTool({ onAddImage }: ImageToolProps) {
             setTab('url')
             setError(null)
           }}
-          className={`flex-1 py-1 text-center rounded-sm transition-all ${
-            tab === 'url' ? 'bg-white text-slate-900 shadow-sm' : 'hover:text-slate-900'
+          className={`flex-1 py-1 text-center rounded-lg transition-all ${
+            tab === 'url' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' : 'hover:text-slate-200'
           }`}
         >
           Image URL
@@ -138,10 +138,10 @@ export function ImageTool({ onAddImage }: ImageToolProps) {
           onDragLeave={handleDragLeave}
           onDrop={handleDrop}
           onClick={() => fileInputRef.current?.click()}
-          className={`flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-md cursor-pointer transition-colors ${
+          className={`flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${
             isDragging
-              ? 'border-blue-500 bg-blue-50/50'
-              : 'border-slate-300 hover:border-slate-400 bg-slate-50/50'
+              ? 'border-indigo-500 bg-indigo-950/30'
+              : 'border-slate-700/80 hover:border-slate-600 bg-slate-900/40'
           }`}
         >
           <input
@@ -153,7 +153,7 @@ export function ImageTool({ onAddImage }: ImageToolProps) {
             disabled={isLoading}
           />
           <svg
-            className="w-8 h-8 mb-1 text-slate-400"
+            className="w-8 h-8 mb-1 text-slate-500"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -165,10 +165,10 @@ export function ImageTool({ onAddImage }: ImageToolProps) {
               d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
             />
           </svg>
-          <p className="text-xs font-medium text-slate-700">
+          <p className="text-xs font-medium text-slate-300">
             {isLoading ? 'Processing image...' : 'Click or drop image here'}
           </p>
-          <p className="text-[10px] text-slate-400 mt-0.5">PNG, JPG, SVG or GIF</p>
+          <p className="text-[10px] text-slate-500 mt-0.5">PNG, JPG, SVG or GIF</p>
         </div>
       ) : (
         /* URL Input Field */
@@ -179,7 +179,7 @@ export function ImageTool({ onAddImage }: ImageToolProps) {
               value={imageUrl}
               onChange={(e) => setImageUrl(e.target.value)}
               placeholder="https://example.com/image.png"
-              className="flex-1 px-2.5 py-1.5 border border-slate-300 rounded-md text-xs text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-400"
+              className="flex-1 px-2.5 py-1.5 bg-slate-900/80 border border-slate-700/80 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
               onKeyDown={(e) => e.key === 'Enter' && handleUrlSubmit()}
               disabled={isLoading}
             />
@@ -187,7 +187,7 @@ export function ImageTool({ onAddImage }: ImageToolProps) {
               type="button"
               onClick={handleUrlSubmit}
               disabled={!imageUrl.trim() || isLoading}
-              className="px-3 py-1.5 bg-blue-600 text-white font-medium rounded-md text-xs hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+              className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-semibold rounded-xl text-xs shadow-md shadow-indigo-600/30 transition-all disabled:opacity-40 disabled:hover:bg-indigo-600 disabled:active:scale-100 disabled:cursor-not-allowed whitespace-nowrap"
             >
               {isLoading ? 'Loading...' : 'Add Image'}
             </button>
@@ -196,7 +196,7 @@ export function ImageTool({ onAddImage }: ImageToolProps) {
       )}
 
       {error && (
-        <div className="text-xs text-red-600 bg-red-50 border border-red-200 px-2.5 py-1.5 rounded-md">
+        <div className="text-xs text-rose-300 bg-rose-950/60 border border-rose-800/60 px-2.5 py-1.5 rounded-xl">
           {error}
         </div>
       )}

@@ -405,19 +405,17 @@ export default function CanvasRoomPage() {
       <CursorTracker canvasRef={canvasElementRef} />
 
       {/* TOP FLOATING UTILITY HEADER */}
-      <div className="absolute top-4 inset-x-4 z-20 flex items-center justify-between pointer-events-none">
-        {/* Left Section: Primary Tool Palette */}
-        <div className="pointer-events-auto shadow-2xl backdrop-blur-2xl rounded-2xl bg-slate-950/80 border border-slate-800/80 p-1">
-          <Toolbar />
-        </div>
+      <div className="absolute top-4 inset-x-4 z-20 grid grid-cols-[1fr_auto_1fr] items-center gap-2 pointer-events-none">
+        {/* Left spacer — keeps the center badge mathematically centered regardless of right-side width */}
+        <div />
 
         {/* Center Section: Collaborator Presence Badge */}
-        <div className="pointer-events-auto hidden md:flex items-center gap-2 bg-slate-950/80 backdrop-blur-2xl border border-slate-800/80 px-3.5 py-1.5 rounded-2xl shadow-2xl">
+        <div className="pointer-events-auto justify-self-center hidden md:flex items-center gap-2 bg-slate-950/80 backdrop-blur-2xl border border-slate-800/80 px-3.5 py-1.5 rounded-2xl shadow-2xl">
           <UserPresence />
         </div>
 
         {/* Right Section: Room Actions & Controls */}
-        <div className="pointer-events-auto flex items-center gap-2">
+        <div className="pointer-events-auto justify-self-end flex items-center gap-2 flex-wrap justify-end">
           {/* Diagnostics HUD Toggle */}
           <button
             onClick={() => setIsDiagnosticsOpen(!isDiagnosticsOpen)}
@@ -535,24 +533,29 @@ export default function CanvasRoomPage() {
         </div>
       )}
 
-      {/* BOTTOM CONTROL LAYER & HUD */}
-      {/* Time Travel Controls (Bottom-Left Side) */}
-      <div className="absolute bottom-4 left-4 z-20">
+      {/* BOTTOM CONTROL LAYER & HUD
+          Each cluster below is a single positioned flex container so its
+          contents auto-stack without overlap — Time Travel and Minimap both
+          toggle between a small collapsed button and a much taller panel, so
+          stacking with fixed pixel offsets (the previous approach) always
+          drifted out of sync and overlapped its neighbor. */}
+
+      {/* Bottom-Left Cluster: Room Invite (above) + Time Travel (anchored to the corner) */}
+      <div className="fixed bottom-4 left-4 z-20 flex flex-col items-start gap-3 max-w-[calc(100vw-2rem)]">
+        <div className="hidden lg:block">
+          <RoomInvite />
+        </div>
         <TimeTravelControls />
       </div>
 
-      {/* Room Invite Card (Bottom-Left Floating) */}
-      <div className="absolute bottom-16 left-4 z-10 hidden lg:block">
-        <RoomInvite />
+      {/* Bottom-Center: Primary Tool Dock */}
+      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
+        <Toolbar />
       </div>
 
-      {/* Typing Active Indicator (Bottom-Center Floating) */}
-      <div className="absolute bottom-20 left-1/2 -translate-x-1/2 z-10 pointer-events-none">
-        <TypingIndicator className="bg-slate-950/80 backdrop-blur-xl text-slate-200 px-3 py-1.5 rounded-full shadow-2xl border border-slate-800/80 text-xs" />
-      </div>
-
-      {/* Zoom Controls Overlay (Bottom-Center Cluster) */}
-      <div className="absolute bottom-4 left-1/2 -translate-x-1/2 z-20 shadow-2xl backdrop-blur-2xl rounded-2xl bg-slate-950/80 border border-slate-800/80 p-1">
+      {/* Bottom-Right Cluster: Minimap (above) + Zoom Controls (anchored to the corner) */}
+      <div className="fixed bottom-4 right-4 z-20 flex flex-col items-end gap-2">
+        <Minimap />
         <ZoomControls
           zoom={zoom}
           onZoomIn={zoomIn}
@@ -562,18 +565,18 @@ export default function CanvasRoomPage() {
         />
       </div>
 
-      {/* Canvas Radar Minimap (Bottom-Right Floating) */}
-      <Minimap className="bottom-4 right-4 z-20 border border-slate-800/80 shadow-2xl rounded-2xl overflow-hidden bg-slate-950/80 backdrop-blur-xl" />
-
-      {/* Canvas Controls Banner (Bottom Hint Bar) */}
-      <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-10 hidden xl:flex items-center gap-3 bg-slate-950/60 backdrop-blur-md px-4 py-1.5 rounded-full border border-slate-800/60 text-[11px] font-mono text-slate-400 shadow-xl pointer-events-none">
-        <span>🖱️ Scroll to zoom</span>
-        <span>•</span>
-        <span>Drag canvas to pan</span>
-        <span>•</span>
-        <span>⚡ Physics enabled</span>
-        <span>•</span>
-        <span>📦 Offline sync active</span>
+      {/* Status Strip (Bottom-Center, above the Toolbar's max popover height so it never overlaps it) */}
+      <div className="absolute bottom-60 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 pointer-events-none">
+        <TypingIndicator className="bg-slate-950/80 backdrop-blur-xl text-slate-200 px-3 py-1.5 rounded-full shadow-2xl border border-slate-800/80 text-xs" />
+        <div className="hidden xl:flex items-center gap-3 bg-slate-950/60 backdrop-blur-md px-4 py-1.5 rounded-full border border-slate-800/60 text-[11px] font-mono text-slate-400 shadow-xl">
+          <span>🖱️ Scroll to zoom</span>
+          <span>•</span>
+          <span>Drag canvas to pan</span>
+          <span>•</span>
+          <span>⚡ Physics enabled</span>
+          <span>•</span>
+          <span>📦 Offline sync active</span>
+        </div>
       </div>
 
       {/* Export Workspace Modal */}

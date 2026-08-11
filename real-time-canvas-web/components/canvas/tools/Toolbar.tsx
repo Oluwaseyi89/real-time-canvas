@@ -124,7 +124,7 @@ export function Toolbar({ className = '' }: ToolbarProps) {
   }
 
   return (
-    <div className={`fixed bottom-6 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-3 transition-all duration-200 ${className}`}>
+    <div className={`flex flex-col items-center gap-3 transition-all duration-200 ${className}`}>
       {/* Active Sub-Tool Popover Panel */}
       {activeTool && (
         <div className="glass-panel p-3 rounded-2xl border border-slate-700/60 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-bottom-2 duration-150">
