@@ -72,7 +72,10 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   activeTool: null,
   isDrawing: false,
   isDragging: false,
-  physicsEnabled: true,
+  // Off by default — this is a design canvas first. Objects only become
+  // subject to gravity/physics once the user explicitly opts in via the
+  // Physics panel's toggle (see the room page's physicsEnabled sync effect).
+  physicsEnabled: false,
   physicsGravity: { x: 0, y: 1 },
 
   /**

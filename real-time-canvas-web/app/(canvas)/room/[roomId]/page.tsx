@@ -108,7 +108,7 @@ export default function CanvasRoomPage() {
         // locally, but don't re-record/re-queue/re-broadcast it as if it
         // were a brand-new local action (that would echo it back out and
         // misattribute it to this user).
-        if (physicsEngine) {
+        if (physicsEngine && useCanvasStore.getState().physicsEnabled) {
           addPhysicsBodyForObject(obj)
         }
         return
@@ -145,7 +145,12 @@ export default function CanvasRoomPage() {
         position,
       })
 
-      if (physicsEngine) {
+      // Static by default — this is a design canvas first, and every new
+      // object used to get a live gravity-affected physics body the
+      // instant it was placed, so it started drifting/falling before you
+      // could even select it. Objects only join the simulation once the
+      // user explicitly opts in via the Physics panel's toggle.
+      if (physicsEngine && useCanvasStore.getState().physicsEnabled) {
         addPhysicsBodyForObject(obj)
       }
     },
@@ -195,8 +200,16 @@ export default function CanvasRoomPage() {
     engine: physicsEngine,
     isRunning: isPhysicsRunning,
     addBody,
+    removeBody,
     initEngine,
   } = usePhysics({
+    // usePhysics() never actually reads this option (dead prop on the hook
+    // itself) — the real, user-facing on/off switch is the canvas store's
+    // physicsEnabled, gating whether objects get bodies at all (see
+    // onObjectAdded and the sync effect below). autoStart just keeps the
+    // simulation loop ticking in the background so it's ready the instant
+    // physicsEnabled flips true; with no bodies attached while it's false,
+    // that loop has nothing to simulate and costs nothing to run.
     enabled: true,
     gravity: PHYSICS_GRAVITY,
     autoStart: true,
@@ -249,6 +262,7 @@ export default function CanvasRoomPage() {
   // Live canvas object/physics sync — applies incoming object:create/update/
   // delete and physics:* messages to the Fabric canvas via WebSocketHandlers.
   const canvas = useCanvasStore((state) => state.canvas)
+  const physicsEnabled = useCanvasStore((state) => state.physicsEnabled)
   useEffect(() => {
     if (!client || !canvas) return
 
@@ -305,6 +319,34 @@ export default function CanvasRoomPage() {
     },
     [physicsEngine, addBody]
   )
+
+  // Syncs physics bodies to the room-wide physicsEnabled toggle (flipped by
+  // PhysicsControls' own "Active/Disabled" button, which only starts/stops
+  // the simulation loop — it has no idea about individual objects). Runs as
+  // an effect rather than inside a click handler so it stays correct no
+  // matter what flips the flag. Turning physics on gives every object
+  // currently on the canvas a body anchored right where it already sits —
+  // nothing teleports, only gravity applies from that point forward.
+  // Turning it off removes those bodies so objects freeze exactly where
+  // they are and go back to being plain, fully drag/resize-able Fabric
+  // objects with nothing fighting the user's own manipulation.
+  const prevPhysicsEnabledRef = useRef(physicsEnabled)
+  useEffect(() => {
+    if (prevPhysicsEnabledRef.current === physicsEnabled) return
+    prevPhysicsEnabledRef.current = physicsEnabled
+
+    if (!physicsEngine) return
+
+    const objects = useCanvasStore.getState().objects
+    if (physicsEnabled) {
+      objects.forEach((obj) => addPhysicsBodyForObject(obj))
+    } else {
+      objects.forEach((obj) => {
+        const id = (obj as any).id
+        if (id) removeBody(id)
+      })
+    }
+  }, [physicsEnabled, physicsEngine, addPhysicsBodyForObject, removeBody])
 
   // Mouse Movement Cursor Tracking
   const handleMouseMove = useCallback(
@@ -533,8 +575,8 @@ export default function CanvasRoomPage() {
 
             <div className="flex justify-between items-center bg-slate-900/60 p-2 rounded-lg border border-slate-800/60">
               <span className="text-slate-400">Physics Simulation</span>
-              <span className={isPhysicsRunning ? 'text-amber-400' : 'text-slate-500'}>
-                {isPhysicsRunning ? '⚡ 60 FPS' : '⏸️ Paused'}
+              <span className={physicsEnabled && isPhysicsRunning ? 'text-amber-400' : 'text-slate-500'}>
+                {physicsEnabled && isPhysicsRunning ? '⚡ 60 FPS' : '⏸️ Paused'}
               </span>
             </div>
 
@@ -595,7 +637,7 @@ export default function CanvasRoomPage() {
           <span>•</span>
           <span>Drag canvas to pan</span>
           <span>•</span>
-          <span>⚡ Physics enabled</span>
+          <span>{physicsEnabled ? '⚡ Physics enabled' : '⏸️ Physics off'}</span>
           <span>•</span>
           <span>📦 Offline sync active</span>
         </div>
