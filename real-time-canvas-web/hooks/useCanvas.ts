@@ -177,6 +177,123 @@ export function useCanvas(options: UseCanvasOptions = {}) {
         wrapper.addEventListener('contextmenu', (e: Event) => e.preventDefault())
       }
     }
+
+    // Touch gestures — the wrapper sets touch-action: none so the browser
+    // never takes over scroll/pinch-zoom, but until now nothing replaced
+    // it, so touch users had no way to pan or zoom at all. Fabric's own
+    // mouse:* events only ever track a single pointer, so pinch-zoom (which
+    // needs both touch points at once) is handled here directly rather than
+    // through Fabric. Single-finger drag reuses that same native touchstart
+    // hit-test so a finger starting on an object still drags/selects it
+    // exactly as before, instead of panning the canvas out from under it.
+    const upperCanvasEl = fabricCanvas.upperCanvasEl
+    let touchMode: 'none' | 'pan' | 'pinch' = 'none'
+    let lastTouchPoints: { x: number; y: number }[] = []
+    let lastPinchDistance = 0
+
+    const getTouchPoints = (e: TouchEvent) =>
+      Array.from(e.touches).map((t) => ({ x: t.clientX, y: t.clientY }))
+
+    const getMidpoint = (points: { x: number; y: number }[]) => ({
+      x: (points[0].x + points[1].x) / 2,
+      y: (points[0].y + points[1].y) / 2,
+    })
+
+    const getDistance = (points: { x: number; y: number }[]) => {
+      const dx = points[0].x - points[1].x
+      const dy = points[0].y - points[1].y
+      return Math.sqrt(dx * dx + dy * dy)
+    }
+
+    // Mirrors the scene-point delta approach the mouse-drag pan handler
+    // above already uses, so touch panning behaves consistently with it.
+    const applyPanDelta = (scenePoint: Point, lastScenePoint: Point) => {
+      const dx = scenePoint.x - lastScenePoint.x
+      const dy = scenePoint.y - lastScenePoint.y
+      const vpt = fabricCanvas.viewportTransform ? [...fabricCanvas.viewportTransform] : [1, 0, 0, 1, 0, 0]
+      vpt[4] += dx
+      vpt[5] += dy
+      fabricCanvas.setViewportTransform(vpt as [number, number, number, number, number, number])
+      setPan({ x: vpt[4], y: vpt[5] })
+      optionsRef.current.onPanChange?.({ x: vpt[4], y: vpt[5] })
+    }
+
+    const handleTouchStart = (e: TouchEvent) => {
+      const points = getTouchPoints(e)
+
+      if (points.length === 1) {
+        // Only take over as a canvas pan when the finger starts on empty
+        // space — a finger starting on an object should drag/select it via
+        // Fabric's own touch handling instead, unchanged from before.
+        const hitTarget = fabricCanvas.findTarget(e)
+        touchMode = hitTarget ? 'none' : 'pan'
+      } else if (points.length >= 2) {
+        touchMode = 'pinch'
+        lastPinchDistance = getDistance(points)
+        fabricCanvas.selection = false
+      }
+
+      lastTouchPoints = points
+      if (touchMode !== 'none') e.preventDefault()
+    }
+
+    const handleTouchMove = (e: TouchEvent) => {
+      if (touchMode === 'none') return
+      const points = getTouchPoints(e)
+      if (points.length === 0) return
+
+      if (touchMode === 'pan' && points.length === 1 && lastTouchPoints.length === 1) {
+        const last = lastTouchPoints[0]
+        const lastEvent = { clientX: last.x, clientY: last.y, target: upperCanvasEl } as unknown as TPointerEvent
+        applyPanDelta(fabricCanvas.getScenePoint(e), fabricCanvas.getScenePoint(lastEvent))
+        fabricCanvas.requestRenderAll()
+      } else if (touchMode === 'pinch' && points.length >= 2) {
+        const distance = getDistance(points)
+        const midpoint = getMidpoint(points)
+        const midpointEvent = { clientX: midpoint.x, clientY: midpoint.y, target: upperCanvasEl } as unknown as TPointerEvent
+
+        if (lastPinchDistance > 0) {
+          const currentZoom = fabricCanvas.getZoom()
+          let newZoom = currentZoom * (distance / lastPinchDistance)
+          newZoom = Math.min(Math.max(newZoom, ZOOM_CONFIG.minZoom), ZOOM_CONFIG.maxZoom)
+
+          fabricCanvas.zoomToPoint(fabricCanvas.getScenePoint(midpointEvent), newZoom)
+          setZoom(newZoom)
+          optionsRef.current.onZoomChange?.(newZoom)
+        }
+
+        if (lastTouchPoints.length >= 2) {
+          const lastMidpoint = getMidpoint(lastTouchPoints)
+          const lastMidpointEvent = { clientX: lastMidpoint.x, clientY: lastMidpoint.y, target: upperCanvasEl } as unknown as TPointerEvent
+          applyPanDelta(fabricCanvas.getScenePoint(midpointEvent), fabricCanvas.getScenePoint(lastMidpointEvent))
+        }
+
+        fabricCanvas.requestRenderAll()
+        lastPinchDistance = distance
+      }
+
+      lastTouchPoints = points
+      e.preventDefault()
+    }
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      const points = getTouchPoints(e)
+      if (points.length < 2) lastPinchDistance = 0
+      if (points.length === 0) {
+        touchMode = 'none'
+        fabricCanvas.selection = true
+      } else if (points.length === 1) {
+        // Dropped from a pinch down to one finger — start a fresh pan from
+        // here instead of jumping using the stale two-finger delta.
+        touchMode = 'pan'
+      }
+      lastTouchPoints = points
+    }
+
+    upperCanvasEl.addEventListener('touchstart', handleTouchStart, { passive: false })
+    upperCanvasEl.addEventListener('touchmove', handleTouchMove, { passive: false })
+    upperCanvasEl.addEventListener('touchend', handleTouchEnd, { passive: false })
+    upperCanvasEl.addEventListener('touchcancel', handleTouchEnd, { passive: false })
   }, [setZoom, setPan])
 
   /**
