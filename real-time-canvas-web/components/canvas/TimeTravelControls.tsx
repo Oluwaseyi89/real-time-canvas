@@ -8,6 +8,7 @@
 
 import { useState, useCallback } from 'react'
 import { useTimeTravel } from '@/hooks/useTimeTravel'
+import { Tooltip } from '@/components/ui/Tooltip'
 
 interface TimeTravelControlsProps {
   className?: string
@@ -116,16 +117,17 @@ export function TimeTravelControls({ className = '' }: TimeTravelControlsProps) 
             <span className="text-[10px] text-slate-400 font-medium">Idle</span>
           )}
 
-          <button
-            type="button"
-            onClick={() => setIsOpen(false)}
-            className="p-1 text-slate-400 hover:text-slate-100 rounded-lg hover:bg-slate-800 transition-colors"
-            title="Minimize panel"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <Tooltip label="Minimize panel">
+            <button
+              type="button"
+              onClick={() => setIsOpen(false)}
+              className="p-1 text-slate-400 hover:text-slate-100 rounded-lg hover:bg-slate-800 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </Tooltip>
         </div>
       </div>
 
@@ -147,59 +149,63 @@ export function TimeTravelControls({ className = '' }: TimeTravelControlsProps) 
         {/* Playback Controls */}
         <div className="flex items-center justify-between bg-slate-800/60 p-1.5 rounded-xl border border-slate-700/50">
           <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={stepBackward}
-              disabled={!state.events.length || state.isPlaying}
-              className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700/70 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              title="Step backward"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
-              </svg>
-            </button>
-
-            <button
-              type="button"
-              onClick={handlePlayPause}
-              disabled={!state.events.length}
-              className="p-1.5 text-slate-100 bg-indigo-600/80 hover:bg-indigo-600 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
-              title={state.isPlaying && !state.isPaused ? 'Pause' : 'Play'}
-            >
-              {state.isPlaying && !state.isPaused ? (
+            <Tooltip label="Step backward">
+              <button
+                type="button"
+                onClick={stepBackward}
+                disabled={!state.events.length || state.isPlaying}
+                className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700/70 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6" />
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
                 </svg>
-              ) : (
+              </button>
+            </Tooltip>
+
+            <Tooltip label={state.isPlaying && !state.isPaused ? 'Pause' : 'Play'}>
+              <button
+                type="button"
+                onClick={handlePlayPause}
+                disabled={!state.events.length}
+                className="p-1.5 text-slate-100 bg-indigo-600/80 hover:bg-indigo-600 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+              >
+                {state.isPlaying && !state.isPaused ? (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 9v6m4-6v6" />
+                  </svg>
+                ) : (
+                  <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+                    <path d="M8 5v14l11-7z" />
+                  </svg>
+                )}
+              </button>
+            </Tooltip>
+
+            <Tooltip label="Stop">
+              <button
+                type="button"
+                onClick={stop}
+                disabled={!state.isPlaying}
+                className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700/70 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                  <path d="M8 5v14l11-7z" />
+                  <rect x="6" y="6" width="12" height="12" rx="1" />
                 </svg>
-              )}
-            </button>
+              </button>
+            </Tooltip>
 
-            <button
-              type="button"
-              onClick={stop}
-              disabled={!state.isPlaying}
-              className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700/70 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              title="Stop"
-            >
-              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-                <rect x="6" y="6" width="12" height="12" rx="1" />
-              </svg>
-            </button>
-
-            <button
-              type="button"
-              onClick={stepForward}
-              disabled={!state.events.length || state.isPlaying}
-              className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700/70 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
-              title="Step forward"
-            >
-              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
-              </svg>
-            </button>
+            <Tooltip label="Step forward">
+              <button
+                type="button"
+                onClick={stepForward}
+                disabled={!state.events.length || state.isPlaying}
+                className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700/70 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
+                </svg>
+              </button>
+            </Tooltip>
           </div>
 
           <span className="text-[11px] font-mono font-medium text-slate-400 px-2">

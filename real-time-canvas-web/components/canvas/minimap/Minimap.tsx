@@ -10,6 +10,7 @@ import { useRef, useState } from 'react'
 import { useMinimap } from '@/hooks/useMinimap'
 import { useMinimapStore } from '@/store/minimapStore'
 import { useCollaborationStore } from '@/store/collaborationStore'
+import { Tooltip } from '@/components/ui/Tooltip'
 
 interface MinimapProps {
   className?: string
@@ -25,26 +26,27 @@ export function Minimap({ className = '' }: MinimapProps) {
 
   if (!isVisible) {
     return (
-      <button
-        onClick={toggleVisibility}
-        className="p-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800/90 text-slate-300 hover:text-white transition-all shadow-2xl border border-slate-700/60 active:scale-95 group backdrop-blur-xl"
-        title="Show Minimap Radar"
-        aria-label="Show minimap"
-      >
-        <svg
-          className="w-5 h-5 transition-transform group-hover:scale-110"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
+      <Tooltip label="Show minimap radar">
+        <button
+          onClick={toggleVisibility}
+          className="p-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800/90 text-slate-300 hover:text-white transition-all shadow-2xl border border-slate-700/60 active:scale-95 group backdrop-blur-xl"
+          aria-label="Show minimap"
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.782V8.018a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
-          />
-        </svg>
-      </button>
+          <svg
+            className="w-5 h-5 transition-transform group-hover:scale-110"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.782V8.018a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"
+            />
+          </svg>
+        </button>
+      </Tooltip>
     )
   }
 
@@ -91,68 +93,71 @@ export function Minimap({ className = '' }: MinimapProps) {
 
           {/* Action Controls */}
           <div className="flex items-center gap-1">
-            <button
-              onClick={handleResize}
-              className="p-1 text-slate-400 hover:text-white hover:bg-slate-800/80 rounded-lg transition-colors"
-              title="Resize Minimap"
-              aria-label="Resize minimap"
-            >
-              <svg
-                className="w-3.5 h-3.5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+            <Tooltip label="Resize minimap">
+              <button
+                onClick={handleResize}
+                className="p-1 text-slate-400 hover:text-white hover:bg-slate-800/80 rounded-lg transition-colors"
+                aria-label="Resize minimap"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
-                />
-              </svg>
-            </button>
-            <button
-              onClick={toggleCollapse}
-              className="p-1 text-slate-400 hover:text-white hover:bg-slate-800/80 rounded-lg transition-colors"
-              title={isCollapsed ? 'Expand Minimap' : 'Collapse Minimap'}
-              aria-label={isCollapsed ? 'Expand minimap' : 'Collapse minimap'}
-            >
-              <svg
-                className={`w-3.5 h-3.5 transition-transform duration-200 ${
-                  isCollapsed ? 'rotate-180' : 'rotate-0'
-                }`}
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+                <svg
+                  className="w-3.5 h-3.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M4 8V4m0 0h4M4 4l5 5m11-1V4m0 0h-4m4 0l-5 5M4 16v4m0 0h4m-4 0l5-5m11 5l-5-5m5 5v-4m0 4h-4"
+                  />
+                </svg>
+              </button>
+            </Tooltip>
+            <Tooltip label={isCollapsed ? 'Expand minimap' : 'Collapse minimap'}>
+              <button
+                onClick={toggleCollapse}
+                className="p-1 text-slate-400 hover:text-white hover:bg-slate-800/80 rounded-lg transition-colors"
+                aria-label={isCollapsed ? 'Expand minimap' : 'Collapse minimap'}
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M19 9l-7 7-7-7"
-                />
-              </svg>
-            </button>
-            <button
-              onClick={toggleVisibility}
-              className="p-1 text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 rounded-lg transition-colors"
-              title="Hide Minimap"
-              aria-label="Hide minimap"
-            >
-              <svg
-                className="w-3.5 h-3.5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+                <svg
+                  className={`w-3.5 h-3.5 transition-transform duration-200 ${
+                    isCollapsed ? 'rotate-180' : 'rotate-0'
+                  }`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M19 9l-7 7-7-7"
+                  />
+                </svg>
+              </button>
+            </Tooltip>
+            <Tooltip label="Hide minimap">
+              <button
+                onClick={toggleVisibility}
+                className="p-1 text-slate-400 hover:text-rose-400 hover:bg-slate-800/80 rounded-lg transition-colors"
+                aria-label="Hide minimap"
               >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M6 18L18 6M6 6l12 12"
-                />
-              </svg>
-            </button>
+                <svg
+                  className="w-3.5 h-3.5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
+                </svg>
+              </button>
+            </Tooltip>
           </div>
         </div>
 
@@ -177,7 +182,7 @@ export function Minimap({ className = '' }: MinimapProps) {
 
               {/* Radar Sweep Effect */}
               <div className="absolute inset-0 pointer-events-none opacity-20 overflow-hidden">
-                <div className="w-full h-[200%] bg-gradient-to-b from-transparent via-cyan-500/20 to-transparent animate-radar-sweep" />
+                <div className="w-full h-[200%] bg-gradient-to-b from-transparent via-cyan-500/20 to-transparent animate-radar-scan" />
               </div>
 
               {/* Hover Navigation Hint */}

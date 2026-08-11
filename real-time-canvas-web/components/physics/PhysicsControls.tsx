@@ -6,6 +6,7 @@
  */
 
 import React, { useState } from 'react'
+import { Tooltip } from '@/components/ui/Tooltip'
 
 export interface PhysicsSettings {
   gravity: number
@@ -54,7 +55,7 @@ export function PhysicsControls({
   }
 
   return (
-    <div className={`fixed top-20 right-6 z-30 transition-all duration-200 ${className}`}>
+    <div className={`transition-all duration-200 ${className}`}>
       <div className="glass-panel rounded-2xl shadow-2xl border border-slate-700/60 overflow-hidden w-72 backdrop-blur-xl">
         {/* Header Toggle */}
         <div className="flex items-center justify-between px-4 py-3 bg-slate-900/60 border-b border-slate-800/80">
@@ -79,20 +80,21 @@ export function PhysicsControls({
             </button>
 
             {/* Expand / Collapse Panel */}
-            <button
-              onClick={() => setIsExpanded((prev) => !prev)}
-              className="p-1 text-slate-400 hover:text-white hover:bg-slate-800/80 rounded-lg transition-colors"
-              title={isExpanded ? 'Collapse settings' : 'Expand settings'}
-            >
-              <svg
-                className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : 'rotate-0'}`}
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
+            <Tooltip label={isExpanded ? 'Collapse settings' : 'Expand settings'}>
+              <button
+                onClick={() => setIsExpanded((prev) => !prev)}
+                className="p-1 text-slate-400 hover:text-white hover:bg-slate-800/80 rounded-lg transition-colors"
               >
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </button>
+                <svg
+                  className={`w-4 h-4 transition-transform duration-200 ${isExpanded ? 'rotate-180' : 'rotate-0'}`}
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+            </Tooltip>
           </div>
         </div>
 

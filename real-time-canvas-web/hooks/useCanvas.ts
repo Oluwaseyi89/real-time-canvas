@@ -47,8 +47,20 @@ interface UseCanvasOptions {
  */
 export function useCanvas(options: UseCanvasOptions = {}) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
-  const containerRef = useRef<HTMLDivElement>(null)
+  const containerElRef = useRef<HTMLDivElement | null>(null)
   const rendererRef = useRef<CanvasRenderer | null>(null)
+
+  // The room page mounts the container behind its own `isReady` gate, which
+  // is false on the very first render — so a plain useRef here is still
+  // null the one time an effect with a real dependency array would check
+  // it, and never gets checked again. A callback ref fires exactly when the
+  // element actually attaches, so this tick is a real dependency the
+  // initialization effect below can react to.
+  const [containerMountTick, setContainerMountTick] = useState(0)
+  const containerRef = useCallback((node: HTMLDivElement | null) => {
+    containerElRef.current = node
+    setContainerMountTick((tick) => tick + 1)
+  }, [])
 
   // Keep options ref updated to prevent unnecessary re-binding of canvas listeners
   const optionsRef = useRef(options)
@@ -300,14 +312,14 @@ export function useCanvas(options: UseCanvasOptions = {}) {
    * Initialize the canvas instance
    */
   const initCanvas = useCallback(() => {
-    if (!canvasRef.current || !containerRef.current) {
+    if (!canvasRef.current || !containerElRef.current) {
       console.warn('[useCanvas] Canvas refs not available')
       return
     }
 
     try {
-      const width = containerRef.current.clientWidth
-      const height = containerRef.current.clientHeight
+      const width = containerElRef.current.clientWidth
+      const height = containerElRef.current.clientHeight
 
       // Initialize Fabric.js canvas
       const fabricCanvas = initializeCanvas(canvasRef.current)
@@ -316,8 +328,13 @@ export function useCanvas(options: UseCanvasOptions = {}) {
       // Update store viewport state
       setViewport({ width, height })
 
-      // Initialize renderer
+      // Initialize renderer — kept on the local ref (used to track whether
+      // *this* hook call owns the canvas, for init/cleanup guarding) and
+      // also published to the shared store, since that's the only copy
+      // every other useCanvas() call site (each tool panel) can actually
+      // see. See the store's `renderer` field for why.
       rendererRef.current = createRenderer(fabricCanvas)
+      useCanvasStore.getState().setRenderer(rendererRef.current)
 
       // Store canvas instance in global store
       setCanvas(fabricCanvas)
@@ -333,10 +350,19 @@ export function useCanvas(options: UseCanvasOptions = {}) {
   }, [setCanvas, setViewport, setupCanvasEvents])
 
   /**
-   * Factory helpers to create & render elements
+   * Factory helpers to create & render elements. These read the renderer
+   * from the shared store, not the local rendererRef — this hook is called
+   * independently by every tool panel (TextTool, ShapeTool, ...) purely to
+   * get at these functions, and each of those calls has its own local
+   * rendererRef that's always null (their canvasRef/containerElRef never
+   * attach to real DOM, so their own init effect never runs). Checking the
+   * local ref here meant every tool's "Add" button silently no-oped —
+   * addText() etc always returned undefined, no matter how well the actual
+   * canvas had initialized elsewhere.
    */
   const addText = useCallback((text: string, options?: WithCustomProps<ITextProps>) => {
-    if (!rendererRef.current) return
+    const renderer = useCanvasStore.getState().renderer
+    if (!renderer) return
 
     const obj = ObjectFactory.createText(text, {
       left: 100,
@@ -344,14 +370,15 @@ export function useCanvas(options: UseCanvasOptions = {}) {
       ...options,
     })
 
-    rendererRef.current.addObject(obj, obj.id)
+    renderer.addObject(obj, obj.id)
     useCanvasStore.getState().addObject(obj)
 
     return obj
   }, [])
 
   const addRectangle = useCallback((options?: WithCustomProps<RectProps>) => {
-    if (!rendererRef.current) return
+    const renderer = useCanvasStore.getState().renderer
+    if (!renderer) return
 
     const obj = ObjectFactory.createRectangle({
       width: 100,
@@ -361,14 +388,15 @@ export function useCanvas(options: UseCanvasOptions = {}) {
       ...options,
     })
 
-    rendererRef.current.addObject(obj, obj.id)
+    renderer.addObject(obj, obj.id)
     useCanvasStore.getState().addObject(obj)
 
     return obj
   }, [])
 
   const addCircle = useCallback((options?: WithCustomProps<CircleProps>) => {
-    if (!rendererRef.current) return
+    const renderer = useCanvasStore.getState().renderer
+    if (!renderer) return
 
     const obj = ObjectFactory.createCircle({
       radius: 50,
@@ -377,14 +405,15 @@ export function useCanvas(options: UseCanvasOptions = {}) {
       ...options,
     })
 
-    rendererRef.current.addObject(obj, obj.id)
+    renderer.addObject(obj, obj.id)
     useCanvasStore.getState().addObject(obj)
 
     return obj
   }, [])
 
   const addTriangle = useCallback((options?: WithCustomProps<FabricObjectProps>) => {
-    if (!rendererRef.current) return
+    const renderer = useCanvasStore.getState().renderer
+    if (!renderer) return
 
     const factoryFn = (ObjectFactory as any).createTriangle
       ? (ObjectFactory as any).createTriangle
@@ -405,14 +434,15 @@ export function useCanvas(options: UseCanvasOptions = {}) {
       ...options,
     })
 
-    rendererRef.current.addObject(obj, obj.id)
+    renderer.addObject(obj, obj.id)
     useCanvasStore.getState().addObject(obj)
 
     return obj
   }, [])
 
   const addStickyNote = useCallback((text: string, options?: WithCustomProps<RectProps>) => {
-    if (!rendererRef.current) return
+    const renderer = useCanvasStore.getState().renderer
+    if (!renderer) return
 
     const obj = ObjectFactory.createStickyNote(text, {
       left: 100,
@@ -420,14 +450,15 @@ export function useCanvas(options: UseCanvasOptions = {}) {
       ...options,
     })
 
-    rendererRef.current.addObject(obj, obj.id)
+    renderer.addObject(obj, obj.id)
     useCanvasStore.getState().addObject(obj)
 
     return obj
   }, [])
 
   const addImage = useCallback(async (url: string, options?: WithCustomProps<ImageProps>) => {
-    if (!rendererRef.current) return
+    const renderer = useCanvasStore.getState().renderer
+    if (!renderer) return
 
     try {
       const obj = await ObjectFactory.createImage(url, {
@@ -436,7 +467,7 @@ export function useCanvas(options: UseCanvasOptions = {}) {
         ...options,
       })
 
-      rendererRef.current.addObject(obj, obj.id)
+      renderer.addObject(obj, obj.id)
       useCanvasStore.getState().addObject(obj)
 
       return obj
@@ -450,18 +481,19 @@ export function useCanvas(options: UseCanvasOptions = {}) {
    * Removal & Clear Actions
    */
   const removeObject = useCallback((id: string) => {
-    const { objects } = useCanvasStore.getState()
+    const { objects, renderer } = useCanvasStore.getState()
     const obj = objects.find((o) => (o as CanvasObject).id === id)
 
-    if (obj && rendererRef.current) {
-      rendererRef.current.removeObject(obj, id)
+    if (obj && renderer) {
+      renderer.removeObject(obj, id)
       useCanvasStore.getState().removeObject(id)
     }
   }, [])
 
   const clearAll = useCallback(() => {
-    if (rendererRef.current) {
-      rendererRef.current.clearAll()
+    const renderer = useCanvasStore.getState().renderer
+    if (renderer) {
+      renderer.clearAll()
       useCanvasStore.getState().clearAllObjects()
     }
   }, [])
@@ -543,9 +575,39 @@ export function useCanvas(options: UseCanvasOptions = {}) {
     }
   }, [canvas, setZoom, setPan])
 
-  // Canvas Initialization and Lifecycle Cleanup
+  // Canvas Initialization and Lifecycle Cleanup. `containerMountTick` is the
+  // real dependency here — the container element is gated behind the room
+  // page's own `isReady` check, which is false on the very first render, so
+  // this effect's ref reads used to be null the one time a normal
+  // dependency array happened to trigger a run, and never got rechecked
+  // once the container actually mounted a render later. The callback ref
+  // that sets containerMountTick fires exactly when that happens, giving
+  // this effect something real to react to.
+  //
+  // The guard below deliberately reads `rendererRef.current`, not the
+  // `isInitialized` state, and neither `isInitialized` nor `canvas` (the
+  // Zustand-stored Fabric instance) appear in the dependency array, even
+  // though the cleanup touches both. Both are *set as a side effect of this
+  // same effect's own body* (initCanvas() calls setIsInitialized(true) and
+  // setCanvas()), so depending on either creates a feedback loop: the value
+  // changes -> effect reruns -> cleanup tears down what was just built ->
+  // state resets -> body reinitializes -> sets the value again -> repeat
+  // forever.
+  //
+  // The cleanup itself only runs its disposal when `rendererRef.current` is
+  // still set — this hook isn't only called by the room page that owns the
+  // real <canvas> element; every tool panel (TextTool, ShapeTool, ...) also
+  // calls useCanvas() purely to get at addText/addRectangle/etc, giving each
+  // of them their own independent rendererRef that never gets set (their
+  // guard above never passes, since their containerElRef/canvasRef are
+  // never attached to real DOM). Reading the shared store's canvas
+  // unconditionally in cleanup meant any tool panel unmounting — e.g. its
+  // popover closing after adding an object — disposed the page's real,
+  // shared canvas out from under everyone else. Gating on this instance's
+  // own rendererRef makes cleanup a no-op for every call site except the one
+  // that actually created the canvas.
   useEffect(() => {
-    if (!isInitialized && containerRef.current && canvasRef.current) {
+    if (!rendererRef.current && containerElRef.current && canvasRef.current) {
       initCanvas()
     }
 
@@ -553,20 +615,22 @@ export function useCanvas(options: UseCanvasOptions = {}) {
       if (rendererRef.current) {
         rendererRef.current.dispose()
         rendererRef.current = null
+        useCanvasStore.getState().setRenderer(null)
+        const currentCanvas = useCanvasStore.getState().canvas
+        if (currentCanvas) {
+          disposeCanvas(currentCanvas)
+        }
+        setIsInitialized(false)
       }
-      if (canvas) {
-        disposeCanvas(canvas)
-      }
-      setIsInitialized(false)
     }
-  }, [initCanvas, isInitialized, canvas])
+  }, [initCanvas, containerMountTick])
 
   // Window Resize Observer
   useEffect(() => {
     const handleResize = () => {
-      if (containerRef.current && canvas) {
-        const width = containerRef.current.clientWidth
-        const height = containerRef.current.clientHeight
+      if (containerElRef.current && canvas) {
+        const width = containerElRef.current.clientWidth
+        const height = containerElRef.current.clientHeight
         canvas.setDimensions({ width, height })
         setViewport({ width, height })
         canvas.requestRenderAll()
@@ -596,6 +660,6 @@ export function useCanvas(options: UseCanvasOptions = {}) {
     zoomOut,
     resetView,
     fitToView,
-    renderer: rendererRef.current,
+    renderer: useCanvasStore.getState().renderer,
   }
 }

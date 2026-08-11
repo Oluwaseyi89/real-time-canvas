@@ -56,7 +56,21 @@ function attachCustomProps<T extends FabricObject>(
 ): T & CustomObjectProps {
   const customObj = obj as T & CustomObjectProps
   customObj.id = uuidv4()
-  customObj.type = type
+  // Fabric v6 made `type` a read-only getter derived from the object's
+  // class (e.g. "i-text", "group") — a plain assignment throws
+  // "Cannot set property type of [object Object] which has only a getter",
+  // which was silently aborting every add*() call (createText/
+  // createRectangle/... all route through here). Redefining it as an own,
+  // writable property shadows the prototype getter for just this instance,
+  // letting the app tag it with its own type string ("text", "sticky-group",
+  // ...) without touching Fabric's own rendering, which dispatches through
+  // each class's own prototype methods rather than by re-reading `.type`.
+  Object.defineProperty(customObj, 'type', {
+    value: type,
+    writable: true,
+    configurable: true,
+    enumerable: true,
+  })
   customObj.createdAt = new Date()
   if (options.createdBy) customObj.createdBy = options.createdBy
   if (options.metadata) customObj.metadata = options.metadata
