@@ -62,7 +62,7 @@ export function ZoomControls({
   return (
     <div
       ref={menuRef}
-      className={`fixed bottom-6 right-6 z-40 flex items-center gap-1.5 select-none ${className}`}
+      className={`relative flex items-center gap-1.5 select-none ${className}`}
       role="group"
       aria-label="Zoom controls"
     >

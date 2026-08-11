@@ -27,7 +27,7 @@ export function Minimap({ className = '' }: MinimapProps) {
     return (
       <button
         onClick={toggleVisibility}
-        className="fixed bottom-20 right-6 z-30 p-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800/90 text-slate-300 hover:text-white transition-all shadow-2xl border border-slate-700/60 active:scale-95 group backdrop-blur-xl"
+        className="p-3 rounded-2xl bg-slate-900/90 hover:bg-slate-800/90 text-slate-300 hover:text-white transition-all shadow-2xl border border-slate-700/60 active:scale-95 group backdrop-blur-xl"
         title="Show Minimap Radar"
         aria-label="Show minimap"
       >
@@ -69,7 +69,7 @@ export function Minimap({ className = '' }: MinimapProps) {
   return (
     <div
       ref={containerRef}
-      className={`fixed bottom-20 right-6 z-30 transition-all duration-200 ${className}`}
+      className={`transition-all duration-200 ${className}`}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
     >

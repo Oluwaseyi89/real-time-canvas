@@ -56,7 +56,7 @@ export function StickyNoteTool({ onAddSticky }: StickyNoteToolProps) {
   }
 
   return (
-    <div className="flex flex-col gap-3 p-3 bg-white rounded-lg shadow-md border border-slate-200 min-w-[280px]">
+    <div className="flex flex-col gap-3 p-1 min-w-[280px]">
       <div className="flex flex-col gap-2">
         <textarea
           value={text}
@@ -64,12 +64,12 @@ export function StickyNoteTool({ onAddSticky }: StickyNoteToolProps) {
           onKeyDown={handleKeyDown}
           placeholder="Write a note... (Enter to add, Shift+Enter for new line)"
           rows={3}
-          className="w-full px-2.5 py-2 border border-slate-300 rounded-md text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent resize-none placeholder:text-slate-400"
+          className="w-full px-2.5 py-2 bg-slate-900/80 border border-slate-700/80 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all resize-none"
         />
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <span className="text-xs font-medium text-slate-500 mr-1">Color:</span>
+            <span className="text-[10px] text-slate-500 font-semibold uppercase mr-1">Color:</span>
             {COLORS.map((color) => {
               const isSelected = selectedColor.value === color.value
               return (
@@ -79,8 +79,8 @@ export function StickyNoteTool({ onAddSticky }: StickyNoteToolProps) {
                   onClick={() => setSelectedColor(color)}
                   className={`w-6 h-6 rounded-full border transition-all transform ${
                     isSelected
-                      ? 'scale-110 ring-2 ring-blue-500 ring-offset-1 border-transparent'
-                      : 'border-slate-300 hover:scale-105'
+                      ? 'scale-110 ring-2 ring-indigo-400 ring-offset-1 ring-offset-slate-900 border-transparent'
+                      : 'border-slate-700/60 hover:scale-105'
                   }`}
                   style={{ backgroundColor: color.value }}
                   title={color.name}
@@ -94,7 +94,7 @@ export function StickyNoteTool({ onAddSticky }: StickyNoteToolProps) {
             type="button"
             onClick={handleAddSticky}
             disabled={!text.trim()}
-            className="px-3 py-1.5 bg-blue-600 text-white font-medium rounded-md text-xs hover:bg-blue-700 active:bg-blue-800 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            className="px-3.5 py-1.5 bg-indigo-600 hover:bg-indigo-500 active:scale-95 text-white font-semibold rounded-xl text-xs shadow-md shadow-indigo-600/30 transition-all disabled:opacity-40 disabled:hover:bg-indigo-600 disabled:active:scale-100 disabled:cursor-not-allowed"
           >
             Add Note
           </button>
