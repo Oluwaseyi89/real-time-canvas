@@ -67,6 +67,23 @@ export default function CanvasRoomPage() {
   // lets onObjectRemoved distinguish "remote delete applied locally" (skip
   // rebroadcast) from "local user deleted this" (broadcast it).
   const remoteOriginDeletesRef = useRef<Set<string>>(new Set())
+  // Tracks in-progress physics drags: while an object with a live body is
+  // being dragged, the body is frozen and follows the pointer (see
+  // onObjectMoving below) instead of fighting the user's manual move; this
+  // also doubles as the last-sample velocity estimate used to fling the
+  // body on release (see onObjectModified).
+  const dragTrackingRef = useRef<Map<string, { x: number; y: number; t: number; vx: number; vy: number }>>(new Map())
+  // Each client runs its own independent Matter engine — there's no
+  // server-side physics authority — so cross-client consistency works by
+  // replaying the same commands (toggle on/off, set gravity, throw/attract/
+  // repel) on every client rather than broadcasting continuous positions.
+  // These flags distinguish "this client changed physicsEnabled/gravity
+  // locally, broadcast it" from "this change just arrived over the wire,
+  // apply it locally but don't echo it back out" — without them, every
+  // toggle would ping-pong between clients forever.
+  const remotePhysicsEnabledRef = useRef(false)
+  const remotePhysicsGravityRef = useRef(false)
+  const lastAttractRepelBroadcastRef = useRef(0)
 
   // Offline Sync setup
   const {
@@ -158,9 +175,61 @@ export default function CanvasRoomPage() {
       const custom = obj as any
       if (!custom.id) return
 
+      // Drag-release throw: if this modification ended a physics drag (see
+      // onObjectMoving), the body was frozen and following the pointer —
+      // hand it back to the simulation with the velocity the user was
+      // dragging at, so releasing mid-motion flings it instead of just
+      // dropping it dead where the pointer let go.
+      const track = dragTrackingRef.current.get(custom.id)
+      dragTrackingRef.current.delete(custom.id)
+      if (track && physicsEngine && useCanvasStore.getState().physicsEnabled) {
+        // Gravity (1G) settles into roughly a ~100px/s terminal fall in this
+        // world — 40px/frame (~2400px/s) launched objects off-screen almost
+        // instantly. This keeps a fast flick fast but still on-screen.
+        const MAX_THROW_SPEED = 10
+        const speed = Math.hypot(track.vx, track.vy)
+        const scale = speed > MAX_THROW_SPEED ? MAX_THROW_SPEED / speed : 1
+        const thrownVelocity = { x: track.vx * scale, y: track.vy * scale }
+        throwBody(custom.id, { velocity: thrownVelocity })
+        // Replay the same throw on every other client's own simulation —
+        // there's no server-side physics authority, so this is how the
+        // fling stays consistent across clients instead of only happening
+        // for the person who dragged it.
+        sendRef.current?.('physics:throw', {
+          objectId: custom.id,
+          type: 'throw',
+          velocity: thrownVelocity,
+        })
+      }
+
       const updates = custom.toObject ? custom.toObject() : {}
       recordEvent('object:update', { objectId: custom.id, updates })
       broadcastObjectUpdate({ objectId: custom.id, updates, userId })
+    },
+    onObjectMoving: (obj) => {
+      const custom = obj as any
+      if (!custom.id || !physicsEngine || !useCanvasStore.getState().physicsEnabled) return
+
+      const now = performance.now()
+      const centerX = (obj.left || 0) + (obj.width || 50) / 2
+      const centerY = (obj.top || 0) + (obj.height || 50) / 2
+      const prev = dragTrackingRef.current.get(custom.id)
+
+      if (!prev) {
+        // First move of this drag — freeze the body so the simulation
+        // doesn't fight the user, then let it start following the pointer.
+        setBodyStatic(custom.id, true)
+        dragTrackingRef.current.set(custom.id, { x: centerX, y: centerY, t: now, vx: 0, vy: 0 })
+      } else {
+        const dt = now - prev.t
+        // dt guard avoids a div-by-near-zero spike from back-to-back move
+        // events; velocity is expressed in Matter's per-frame units (~1/60s).
+        const vx = dt > 1 ? ((centerX - prev.x) / dt) * (1000 / 60) : prev.vx
+        const vy = dt > 1 ? ((centerY - prev.y) / dt) * (1000 / 60) : prev.vy
+        dragTrackingRef.current.set(custom.id, { x: centerX, y: centerY, t: now, vx, vy })
+      }
+
+      setBodyPosition(custom.id, { x: centerX, y: centerY })
     },
     onObjectRemoved: (obj) => {
       const custom = obj as any
@@ -199,9 +268,21 @@ export default function CanvasRoomPage() {
   const {
     engine: physicsEngine,
     isRunning: isPhysicsRunning,
+    isPaused: isPhysicsPaused,
     addBody,
     removeBody,
     initEngine,
+    start: startPhysics,
+    stop: stopPhysics,
+    pause: pausePhysics,
+    resume: resumePhysics,
+    setGravity: setPhysicsGravityValue,
+    setTimeScale: setPhysicsTimeScale,
+    throwBody,
+    attractBody,
+    repelBody,
+    setBodyStatic,
+    setBodyPosition,
   } = usePhysics({
     // usePhysics() never actually reads this option (dead prop on the hook
     // itself) — the real, user-facing on/off switch is the canvas store's
@@ -215,6 +296,39 @@ export default function CanvasRoomPage() {
     autoStart: true,
     onCollision: handleCollision,
   })
+
+  // Publishes this page's real, canvas-attached physics actions/state to the
+  // shared store so PhysicsControls (and anything else rendered outside this
+  // component) can drive the actual engine instead of an uninitialized one
+  // of its own — see the store's PhysicsController type for why.
+  useEffect(() => {
+    useCanvasStore.getState().setPhysicsController({
+      isRunning: isPhysicsRunning,
+      isPaused: isPhysicsPaused,
+      start: startPhysics,
+      stop: stopPhysics,
+      pause: pausePhysics,
+      resume: resumePhysics,
+      setGravity: setPhysicsGravityValue,
+      setTimeScale: setPhysicsTimeScale,
+      throwBody,
+      attractBody,
+      repelBody,
+    })
+    return () => useCanvasStore.getState().setPhysicsController(null)
+  }, [
+    isPhysicsRunning,
+    isPhysicsPaused,
+    startPhysics,
+    stopPhysics,
+    pausePhysics,
+    resumePhysics,
+    setPhysicsGravityValue,
+    setPhysicsTimeScale,
+    throwBody,
+    attractBody,
+    repelBody,
+  ])
 
   // WebSocket Connection Setup — the single socket for this room session.
   // Object/canvas/physics handlers are registered on `client` below once the
@@ -263,6 +377,7 @@ export default function CanvasRoomPage() {
   // delete and physics:* messages to the Fabric canvas via WebSocketHandlers.
   const canvas = useCanvasStore((state) => state.canvas)
   const physicsEnabled = useCanvasStore((state) => state.physicsEnabled)
+  const physicsGravity = useCanvasStore((state) => state.physicsGravity)
   useEffect(() => {
     if (!client || !canvas) return
 
@@ -283,7 +398,53 @@ export default function CanvasRoomPage() {
       onObjectUpdate: (message) => handlers.handleObjectUpdate(message),
       onObjectDelete: (message) => handlers.handleObjectDelete(message),
       onCanvasSync: (message) => handlers.handleCanvasSync(message),
-      onPhysicsEvent: (message) => handlers.handlePhysicsEvent(message),
+      // The hub echoes every broadcast back to the sender too (it doesn't
+      // exclude the originating connection) — this component already
+      // applied its own local action directly (not via this handler)
+      // before broadcasting, so re-applying an echo of its own message
+      // would double up (throwBody is idempotent, but attractBody/repelBody
+      // use Body.applyForce, which is cumulative — a self-echo would add a
+      // second force impulse on top of the one already applied locally).
+      // Comparing message.userId against this client's own id makes every
+      // physics:* handler below a no-op for its own echoes.
+      //
+      // throw/attract/repel are replayed on THIS client's own engine (each
+      // client runs an independent Matter simulation — there's no
+      // server-side physics authority — so the receiving client needs the
+      // actual command applied, not a manual position animation).
+      // 'collision' has no local engine action to replay, so it still falls
+      // through to the legacy visual-nudge handler.
+      onPhysicsEvent: (message) => {
+        if (message.userId === userId) return
+        const { type, objectId, velocity, position, strength, radius } = message.payload
+        const controller = useCanvasStore.getState().physicsController
+        if (type === 'throw' && velocity && controller) {
+          controller.throwBody(objectId, { velocity })
+        } else if (
+          (type === 'attract' || type === 'repel') &&
+          position &&
+          strength !== undefined &&
+          radius !== undefined &&
+          controller
+        ) {
+          const config = { position, strength, radius, type }
+          if (type === 'attract') controller.attractBody(objectId, config)
+          else controller.repelBody(objectId, config)
+        } else {
+          handlers.handlePhysicsEvent(message)
+        }
+      },
+      onPhysicsEnabled: (message) => {
+        if (message.userId === userId) return
+        remotePhysicsEnabledRef.current = true
+        useCanvasStore.getState().setPhysicsEnabled(message.payload.enabled)
+      },
+      onPhysicsGravity: (message) => {
+        if (message.userId === userId) return
+        remotePhysicsGravityRef.current = true
+        useCanvasStore.getState().setPhysicsGravity(message.payload.gravity)
+        useCanvasStore.getState().physicsController?.setGravity(message.payload.gravity)
+      },
     })
   }, [client, canvas])
 
@@ -335,6 +496,15 @@ export default function CanvasRoomPage() {
     if (prevPhysicsEnabledRef.current === physicsEnabled) return
     prevPhysicsEnabledRef.current = physicsEnabled
 
+    // Broadcast this toggle so other clients' canvases attach/detach bodies
+    // too — unless this change just arrived FROM another client, in which
+    // case echoing it back out would ping-pong forever.
+    if (remotePhysicsEnabledRef.current) {
+      remotePhysicsEnabledRef.current = false
+    } else {
+      sendRef.current?.('physics:enabled', { enabled: physicsEnabled })
+    }
+
     if (!physicsEngine) return
 
     const objects = useCanvasStore.getState().objects
@@ -347,6 +517,100 @@ export default function CanvasRoomPage() {
       })
     }
   }, [physicsEnabled, physicsEngine, addPhysicsBodyForObject, removeBody])
+
+  // Broadcasts local gravity changes (Earth/Zero-G/Inverted presets or the
+  // manual sliders in PhysicsControls) so every client's simulation applies
+  // the same gravity — same remote-origin guard as the toggle above.
+  const prevPhysicsGravityRef = useRef(physicsGravity)
+  useEffect(() => {
+    const prev = prevPhysicsGravityRef.current
+    if (prev.x === physicsGravity.x && prev.y === physicsGravity.y) return
+    prevPhysicsGravityRef.current = physicsGravity
+
+    if (remotePhysicsGravityRef.current) {
+      remotePhysicsGravityRef.current = false
+      return
+    }
+    sendRef.current?.('physics:gravity', { gravity: physicsGravity })
+  }, [physicsGravity])
+
+  // Attract/Repel keybinds — hold "A" to pull the selected object toward
+  // the canvas center, hold "R" to push it away, for as long as the key is
+  // held. Only active while physics is on; targets whatever Fabric reports
+  // as the active object at each animation frame, so switching selection
+  // mid-hold just retargets rather than requiring a fresh keypress.
+  useEffect(() => {
+    if (!physicsEnabled || !physicsEngine) return
+
+    let activeKey: 'a' | 'r' | null = null
+    let frameId: number | null = null
+
+    const tick = () => {
+      const active = useCanvasStore.getState().canvas?.getActiveObject() as any
+      if (active?.id && activeKey) {
+        const { width, height } = useCanvasStore.getState().viewport
+        const config = {
+          position: { x: width / 2, y: height / 2 },
+          // PhysicsEngine's attract/repel force is inverse-square
+          // (strength * mass / distance²), unlike Matter's own gravity
+          // (mass * gravity * scale, no distance term) — at a typical
+          // ~300-500px on-canvas distance, a strength comparable to
+          // gravity's constant would be imperceptible. This value keeps
+          // the per-frame force in roughly the same visible range gravity
+          // produces (~0.01) at those distances.
+          strength: 120,
+          radius: 3000,
+          type: activeKey === 'a' ? ('attract' as const) : ('repel' as const),
+        }
+        if (activeKey === 'a') attractBody(active.id, config)
+        else repelBody(active.id, config)
+
+        // Throttled — this tick runs every animation frame while the key
+        // is held, and broadcasting at 60Hz would flood the socket for no
+        // real benefit (other clients just need to feel the same pull
+        // often enough to look continuous, not every single frame).
+        const now = performance.now()
+        if (now - lastAttractRepelBroadcastRef.current > 100) {
+          lastAttractRepelBroadcastRef.current = now
+          sendRef.current?.(activeKey === 'a' ? 'physics:attract' : 'physics:repel', {
+            objectId: active.id,
+            ...config,
+          })
+        }
+      }
+      frameId = requestAnimationFrame(tick)
+    }
+
+    const isTypingTarget = (el: EventTarget | null) => {
+      const target = el as HTMLElement | null
+      return !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.repeat || isTypingTarget(e.target)) return
+      const key = e.key.toLowerCase()
+      if (key !== 'a' && key !== 'r') return
+      activeKey = key
+      if (frameId === null) frameId = requestAnimationFrame(tick)
+    }
+
+    const handleKeyUp = (e: KeyboardEvent) => {
+      if (e.key.toLowerCase() !== activeKey) return
+      activeKey = null
+      if (frameId !== null) {
+        cancelAnimationFrame(frameId)
+        frameId = null
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    window.addEventListener('keyup', handleKeyUp)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+      window.removeEventListener('keyup', handleKeyUp)
+      if (frameId !== null) cancelAnimationFrame(frameId)
+    }
+  }, [physicsEnabled, physicsEngine, attractBody, repelBody])
 
   // Mouse Movement Cursor Tracking
   const handleMouseMove = useCallback(
@@ -410,15 +674,23 @@ export default function CanvasRoomPage() {
     }
   }, [handleMouseMove])
 
-  // Bind Physics Engine to Canvas
+  // Bind Physics Engine to Canvas. PhysicsEngine.setCanvas() expects the
+  // Fabric Canvas instance (it calls canvas.renderAll() every simulation
+  // frame) — canvasRef.current is the raw <canvas> DOM element, which has
+  // no renderAll() method. Passing it silently broke the engine's own
+  // render loop: the first frame's `this.canvas.renderAll()` threw inside
+  // the requestAnimationFrame callback, which aborted before it could
+  // reschedule itself, so the loop died after one frame. Matter still
+  // simulated bodies and updated linked Fabric objects' left/top/angle in
+  // memory (via the engine's own 'afterUpdate' listener), but nothing ever
+  // repainted them — so any *passive* physics motion (gravity settling,
+  // attract/repel) was invisible unless some unrelated interaction (drag,
+  // zoom, pan) happened to trigger Fabric's own repaint in the meantime.
   useEffect(() => {
-    if (isInitialized && canvasRef.current) {
-      const canvas = (canvasRef as any).current
-      if (canvas) {
-        initEngine(canvas)
-      }
+    if (isInitialized && canvas) {
+      initEngine(canvas)
     }
-  }, [isInitialized, canvasRef, initEngine])
+  }, [isInitialized, canvas, initEngine])
 
   // Cleanup on unmount
   useEffect(() => {
@@ -638,6 +910,12 @@ export default function CanvasRoomPage() {
           <span>Drag canvas to pan</span>
           <span>•</span>
           <span>{physicsEnabled ? '⚡ Physics enabled' : '⏸️ Physics off'}</span>
+          {physicsEnabled && (
+            <>
+              <span>•</span>
+              <span>Hold A/R to attract/repel selection</span>
+            </>
+          )}
           <span>•</span>
           <span>📦 Offline sync active</span>
         </div>

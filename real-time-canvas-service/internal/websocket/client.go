@@ -196,7 +196,7 @@ func (c *Client) handleMessage(msg *WebSocketMessage) {
 		c.persistObjectDelete(payload)
 		c.broadcastToRoom(msg)
 
-	case MsgPhysicsThrow, MsgPhysicsCollision, MsgPhysicsAttract, MsgPhysicsRepel:
+	case MsgPhysicsThrow, MsgPhysicsCollision, MsgPhysicsAttract, MsgPhysicsRepel, MsgPhysicsEnabled, MsgPhysicsGravity:
 		c.broadcastToRoom(msg)
 
 	default:

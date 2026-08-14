@@ -38,6 +38,7 @@ interface UseCanvasOptions {
   onObjectRemoved?: (obj: FabricObject) => void
   onObjectSelected?: (obj: FabricObject) => void
   onObjectModified?: (obj: FabricObject) => void
+  onObjectMoving?: (obj: FabricObject) => void
   onZoomChange?: (zoom: number) => void
   onPanChange?: (pan: { x: number; y: number }) => void
 }
@@ -110,6 +111,14 @@ export function useCanvas(options: UseCanvasOptions = {}) {
     fabricCanvas.on('object:modified', (e: ModifiedEvent<TPointerEvent>) => {
       if (e.target) {
         optionsRef.current.onObjectModified?.(e.target)
+      }
+    })
+
+    // Fires continuously while an object is being dragged — used for
+    // physics drag-release velocity tracking (see the room page).
+    fabricCanvas.on('object:moving', (e: FabricObjectEvent) => {
+      if (e.target) {
+        optionsRef.current.onObjectMoving?.(e.target)
       }
     })
 

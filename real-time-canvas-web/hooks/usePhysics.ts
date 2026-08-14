@@ -155,6 +155,24 @@ export function usePhysics(options: UsePhysicsOptions = {}) {
   }, [])
 
   /**
+   * Freeze/unfreeze a body (used to let it follow a manual drag)
+   */
+  const setBodyStatic = useCallback((bodyId: string, isStatic: boolean) => {
+    if (engineRef.current) {
+      engineRef.current.setBodyStatic(bodyId, isStatic)
+    }
+  }, [])
+
+  /**
+   * Directly set a body's position (used while a linked object is dragged)
+   */
+  const setBodyPosition = useCallback((bodyId: string, position: { x: number; y: number }) => {
+    if (engineRef.current) {
+      engineRef.current.setBodyPosition(bodyId, position)
+    }
+  }, [])
+
+  /**
    * Get a body by ID
    */
   const getBody = useCallback((bodyId: string) => {
@@ -217,6 +235,8 @@ export function usePhysics(options: UsePhysicsOptions = {}) {
     throwBody,
     attractBody,
     repelBody,
+    setBodyStatic,
+    setBodyPosition,
     getBody,
     getAllBodies,
     setGravity,

@@ -43,6 +43,8 @@ export type WebSocketMessageType =
   | 'physics:collision'
   | 'physics:attract'
   | 'physics:repel'
+  | 'physics:enabled'
+  | 'physics:gravity'
   // Error events
   | 'error'
 
@@ -130,6 +132,12 @@ export interface CanvasSyncPayload {
 
 /**
  * Physics interaction payload
+ *
+ * position/strength/radius are only populated for 'attract'/'repel' — each
+ * client's Matter engine is independent (no server-side physics authority),
+ * so cross-client sync works by replaying the same *command* (throw a body
+ * with this velocity, attract toward this point) on every client's own
+ * simulation rather than broadcasting continuous position updates.
  */
 export interface PhysicsPayload {
   objectId: string
@@ -137,6 +145,24 @@ export interface PhysicsPayload {
   velocity?: { x: number; y: number }
   force?: number
   targetId?: string
+  position?: { x: number; y: number }
+  strength?: number
+  radius?: number
+}
+
+/**
+ * Physics enabled/disabled toggle payload — lets every client agree on
+ * whether objects are participating in the simulation at all.
+ */
+export interface PhysicsEnabledPayload {
+  enabled: boolean
+}
+
+/**
+ * Gravity change payload
+ */
+export interface PhysicsGravityPayload {
+  gravity: { x: number; y: number }
 }
 
 /**
@@ -166,6 +192,8 @@ export interface WebSocketHandlers {
   onCursorMove?: (position: CursorPosition) => void
   onCanvasSync?: (message: WebSocketMessage<CanvasSyncPayload>) => void
   onPhysicsEvent?: (message: WebSocketMessage<PhysicsPayload>) => void
+  onPhysicsEnabled?: (message: WebSocketMessage<PhysicsEnabledPayload>) => void
+  onPhysicsGravity?: (message: WebSocketMessage<PhysicsGravityPayload>) => void
   onRoomJoined?: (roomId: string, users: UserPresence[]) => void
   onUserJoined?: (payload: { userId: string; username: string }) => void
   onUserLeft?: (payload: { userId: string }) => void
