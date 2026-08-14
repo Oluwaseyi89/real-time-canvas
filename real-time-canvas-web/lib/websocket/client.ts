@@ -15,6 +15,8 @@ import type {
   ObjectDeletePayload,
   CanvasSyncPayload,
   PhysicsPayload,
+  PhysicsEnabledPayload,
+  PhysicsGravityPayload,
   ErrorPayload,
 } from '@/types/websocket'
 import { v4 as uuidv4 } from 'uuid'
@@ -121,6 +123,28 @@ function isPhysicsPayload(payload: unknown): payload is PhysicsPayload {
     payload !== null &&
     'objectId' in payload &&
     'type' in payload
+  )
+}
+
+/**
+ * Type guard to check if payload is PhysicsEnabledPayload
+ */
+function isPhysicsEnabledPayload(payload: unknown): payload is PhysicsEnabledPayload {
+  return (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'enabled' in payload
+  )
+}
+
+/**
+ * Type guard to check if payload is PhysicsGravityPayload
+ */
+function isPhysicsGravityPayload(payload: unknown): payload is PhysicsGravityPayload {
+  return (
+    typeof payload === 'object' &&
+    payload !== null &&
+    'gravity' in payload
   )
 }
 
@@ -493,6 +517,16 @@ export class WebSocketClient {
       case 'physics:repel':
         if (isPhysicsPayload(payload)) {
           this.handlers.onPhysicsEvent?.(message as WebSocketMessage<PhysicsPayload>)
+        }
+        break
+      case 'physics:enabled':
+        if (isPhysicsEnabledPayload(payload)) {
+          this.handlers.onPhysicsEnabled?.(message as WebSocketMessage<PhysicsEnabledPayload>)
+        }
+        break
+      case 'physics:gravity':
+        if (isPhysicsGravityPayload(payload)) {
+          this.handlers.onPhysicsGravity?.(message as WebSocketMessage<PhysicsGravityPayload>)
         }
         break
       case 'connection:error':

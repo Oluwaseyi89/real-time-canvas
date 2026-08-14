@@ -6,7 +6,6 @@
  */
 
 import { useState } from 'react'
-import { usePhysics } from '@/hooks/usePhysics'
 import { useCanvasStore } from '@/store/canvasStore'
 
 interface PhysicsControlsProps {
@@ -14,8 +13,21 @@ interface PhysicsControlsProps {
 }
 
 export function PhysicsControls({ className = '' }: PhysicsControlsProps) {
-  const { isRunning, isPaused, start, stop, pause, resume, setGravity, setTimeScale } = usePhysics()
+  // Reads the room page's real, canvas-attached engine via the shared store
+  // instead of calling usePhysics() itself — a separate instance here would
+  // get its own engine that's never initialized (initEngine() is only ever
+  // called from the room page), so every action below would silently no-op.
+  const physicsController = useCanvasStore((state) => state.physicsController)
   const { physicsEnabled, physicsGravity, setPhysicsEnabled, setPhysicsGravity } = useCanvasStore()
+
+  const isRunning = physicsController?.isRunning ?? false
+  const isPaused = physicsController?.isPaused ?? false
+  const start = () => physicsController?.start()
+  const stop = () => physicsController?.stop()
+  const pause = () => physicsController?.pause()
+  const resume = () => physicsController?.resume()
+  const setGravity = (gravity: { x: number; y: number }) => physicsController?.setGravity(gravity)
+  const setTimeScale = (scale: number) => physicsController?.setTimeScale(scale)
 
   const [gravityX, setGravityX] = useState(physicsGravity.x)
   const [gravityY, setGravityY] = useState(physicsGravity.y)

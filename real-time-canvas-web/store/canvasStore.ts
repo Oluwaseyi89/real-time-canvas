@@ -6,6 +6,29 @@
 import { create } from 'zustand'
 import { Canvas, Object as FabricObject } from 'fabric'
 import type { CanvasRenderer } from '@/lib/canvas/renderer'
+import type { ThrowConfig, ForceConfig } from '@/types/physics'
+
+/**
+ * The live physics engine's actions/state, published by the room page (the
+ * only place that actually calls usePhysics() with a real engine attached to
+ * the canvas). PhysicsControls used to call usePhysics() itself, getting its
+ * own separate, never-initialized engine — every slider/button in that panel
+ * silently no-oped on a null engine. Reading this shared instance instead is
+ * the same fix pattern already used for `renderer` above.
+ */
+export interface PhysicsController {
+  isRunning: boolean
+  isPaused: boolean
+  start: () => void
+  stop: () => void
+  pause: () => void
+  resume: () => void
+  setGravity: (gravity: { x: number; y: number }) => void
+  setTimeScale: (scale: number) => void
+  throwBody: (bodyId: string, config: ThrowConfig) => void
+  attractBody: (bodyId: string, config: ForceConfig) => void
+  repelBody: (bodyId: string, config: ForceConfig) => void
+}
 
 interface CanvasState {
   // Core state
@@ -19,6 +42,7 @@ interface CanvasState {
   // renderer the page created — without it, every tool's add call silently
   // no-oped on its own dead local ref.
   renderer: CanvasRenderer | null
+  physicsController: PhysicsController | null
   objects: FabricObject[]
   selectedObjects: string[]
   isReady: boolean
@@ -40,6 +64,7 @@ interface CanvasState {
   // Actions
   setCanvas: (canvas: Canvas) => void
   setRenderer: (renderer: CanvasRenderer | null) => void
+  setPhysicsController: (controller: PhysicsController | null) => void
   addObject: (obj: FabricObject) => void
   removeObject: (id: string) => void
   updateObject: (id: string, props: Partial<FabricObject>) => void
@@ -63,6 +88,7 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
   // Initial state
   canvas: null,
   renderer: null,
+  physicsController: null,
   objects: [],
   selectedObjects: [],
   isReady: false,
@@ -90,6 +116,14 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
    */
   setRenderer: (renderer: CanvasRenderer | null) => {
     set({ renderer })
+  },
+
+  /**
+   * Set the live physics controller (actions/state from the room page's
+   * real usePhysics() instance)
+   */
+  setPhysicsController: (controller: PhysicsController | null) => {
+    set({ physicsController: controller })
   },
 
   /**

@@ -359,6 +359,27 @@ export class PhysicsEngine {
   }
 
   /**
+   * Freeze/unfreeze a body without removing it — used to make a body follow
+   * a manual Fabric drag (via setBodyPosition) without the simulation
+   * fighting the user, then hand control back to physics on release.
+   */
+  setBodyStatic(bodyId: string, isStatic: boolean): void {
+    const body = this.bodies.get(bodyId)
+    if (!body) return
+    Body.setStatic(body, isStatic)
+  }
+
+  /**
+   * Directly set a body's position — used to keep a frozen (static) body
+   * tracking the Fabric object it's linked to while the user drags it.
+   */
+  setBodyPosition(bodyId: string, position: { x: number; y: number }): void {
+    const body = this.bodies.get(bodyId)
+    if (!body) return
+    Body.setPosition(body, position)
+  }
+
+  /**
    * Apply gravity to a body
    */
   applyGravity(bodyId: string, gravity: { x: number; y: number }): void {

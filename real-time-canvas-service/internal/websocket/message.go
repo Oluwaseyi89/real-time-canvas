@@ -47,6 +47,8 @@ const (
 	MsgPhysicsCollision MessageType = "physics:collision"
 	MsgPhysicsAttract   MessageType = "physics:attract"
 	MsgPhysicsRepel     MessageType = "physics:repel"
+	MsgPhysicsEnabled   MessageType = "physics:enabled"
+	MsgPhysicsGravity   MessageType = "physics:gravity"
 )
 
 // WebSocketMessage represents a message sent over WebSocket
