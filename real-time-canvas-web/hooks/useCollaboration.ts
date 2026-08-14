@@ -190,6 +190,31 @@ export function useCollaboration(options: UseCollaborationOptions) {
     if (!client || !enabled) return
 
     client.on({
+      // The server replays the room's current member list only on this
+      // message (sent once, right after this client's own room:join) — it
+      // never came from anywhere else, so a client that joins a room with
+      // people already in it saw 0 users until one of them happened to
+      // re-broadcast presence (the onUserJoined re-announce below only
+      // helps the *other* direction: already-present clients learning
+      // about a new joiner, not the new joiner learning about them).
+      onRoomJoined: (_roomId, users) => {
+        const store = useCollaborationStore.getState()
+        users.forEach((presence) => {
+          if (presence.userId === userId || store.users.has(presence.userId)) return
+          store.addUser({
+            userId: presence.userId,
+            username: presence.username,
+            isActive: presence.isActive,
+            lastSeen: presence.lastSeen,
+            isTyping: presence.isTyping,
+            selectedTool: presence.selectedTool,
+            cursor: presence.cursor
+              ? { x: presence.cursor.x, y: presence.cursor.y, timestamp: Date.now() }
+              : undefined,
+          })
+        })
+      },
+
       onUserPresence: (presence) => {
         if (presence.userId === userId) return // Skip self
 
