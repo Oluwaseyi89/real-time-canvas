@@ -612,15 +612,24 @@ export default function CanvasRoomPage() {
     }
   }, [physicsEnabled, physicsEngine, attractBody, repelBody])
 
-  // Mouse Movement Cursor Tracking
+  // Mouse Movement Cursor Tracking. Broadcasts in *scene* coordinates (the
+  // same plane as object.left/top, unaffected by zoom/pan) rather than raw
+  // canvas-pixel-buffer coordinates — the minimap positions dots against
+  // object bounding rects, which are also scene-space, so a receiver's
+  // dot/cursor render only lines up with real object positions if the
+  // broadcast is in that same space. A raw-pixel broadcast only happened to
+  // look right at zoom=1/pan={0,0}; any pan or zoom made it drift.
+  // CursorTracker converts back to each viewer's own screen space using
+  // their own viewportTransform, since two clients can be panned/zoomed
+  // differently.
   const handleMouseMove = useCallback(
     (e: MouseEvent) => {
-      const canvas = canvasElementRef.current
-      if (!canvas || !isConnected) return
+      const fabricCanvas = useCanvasStore.getState().canvas
+      if (!fabricCanvas || !isConnected) return
 
-      const rect = canvas.getBoundingClientRect()
-      const x = ((e.clientX - rect.left) / rect.width) * canvas.width
-      const y = ((e.clientY - rect.top) / rect.height) * canvas.height
+      const scenePoint = fabricCanvas.getScenePoint(e)
+      const x = scenePoint.x
+      const y = scenePoint.y
 
       lastCursorPos.current = { x, y }
       broadcastCursor({

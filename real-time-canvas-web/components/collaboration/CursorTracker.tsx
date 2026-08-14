@@ -6,7 +6,9 @@
  * with user name badges and active tool indicators.
  */
 
+import { util } from 'fabric'
 import { useCollaborationStore } from '@/store/collaborationStore'
+import { useCanvasStore } from '@/store/canvasStore'
 
 interface CursorTrackerProps {
   canvasRef: React.RefObject<HTMLCanvasElement | null>
@@ -14,21 +16,34 @@ interface CursorTrackerProps {
 
 export function CursorTracker({ canvasRef }: CursorTrackerProps) {
   const { users } = useCollaborationStore()
+  const fabricCanvas = useCanvasStore((state) => state.canvas)
+  // Remote cursors are broadcast in scene coordinates (see page.tsx's
+  // handleMouseMove) — subscribing to zoom/pan re-renders this overlay the
+  // moment *this* viewer pans/zooms, not just when new cursor data arrives,
+  // so cursors don't lag a beat behind your own viewport changes.
+  useCanvasStore((state) => state.zoom)
+  useCanvasStore((state) => state.pan)
 
   const canvas = canvasRef.current
-  if (!canvas) return null
+  if (!canvas || !fabricCanvas) return null
 
-  const rect = canvas.getBoundingClientRect()
   const activeUsers = Array.from(users.values()).filter((u) => u.cursor)
+  const vpt = fabricCanvas.viewportTransform || [1, 0, 0, 1, 0, 0]
 
   return (
     <div className="absolute inset-0 pointer-events-none overflow-hidden z-50">
       {activeUsers.map((user) => {
         if (!user.cursor) return null
 
-        // Scale normalized canvas coordinates to viewport bounds
-        const x = (user.cursor.x / (canvas.width || 1)) * rect.width
-        const y = (user.cursor.y / (canvas.height || 1)) * rect.height
+        // Scene coordinates are the same for every viewer; transform into
+        // *this* viewer's own screen position via their own viewport
+        // transform, since two clients can be panned/zoomed differently.
+        const viewportPoint = util.transformPoint(
+          { x: user.cursor.x, y: user.cursor.y },
+          vpt
+        )
+        const x = viewportPoint.x
+        const y = viewportPoint.y
         const userColor = getUserColor(user.userId)
 
         return (
