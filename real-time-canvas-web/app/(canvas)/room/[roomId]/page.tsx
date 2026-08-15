@@ -202,7 +202,12 @@ export default function CanvasRoomPage() {
         return
       }
 
-      const data = custom.toObject ? custom.toObject() : {}
+      // Fabric's toObject() only serializes properties it natively knows
+      // about (left, top, fill, src, ...) — our own custom bag (metadata,
+      // createdBy; see attachCustomProps in objectFactory.ts) has to be
+      // requested explicitly or it silently never reaches the broadcast/
+      // persisted payload, even though it's a real property on the object.
+      const data = custom.toObject ? custom.toObject(['metadata', 'createdBy']) : {}
       const position = { x: custom.left || 0, y: custom.top || 0 }
 
       // Record event for time travel
@@ -273,7 +278,9 @@ export default function CanvasRoomPage() {
         })
       }
 
-      const updates = custom.toObject ? custom.toObject() : {}
+      // See the matching comment in onObjectAdded above — same gap applies
+      // to modify-broadcasts, not just the initial create.
+      const updates = custom.toObject ? custom.toObject(['metadata', 'createdBy']) : {}
       recordEvent('object:update', { objectId: custom.id, updates })
       broadcastObjectUpdate({ objectId: custom.id, updates, userId })
     },
@@ -988,7 +995,7 @@ export default function CanvasRoomPage() {
 
       {/* Bottom-Center: Primary Tool Dock */}
       <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
-        <Toolbar />
+        <Toolbar roomId={roomId} />
       </div>
 
       {/* Bottom-Right Cluster: Minimap (above) + Zoom Controls (anchored to the corner) */}

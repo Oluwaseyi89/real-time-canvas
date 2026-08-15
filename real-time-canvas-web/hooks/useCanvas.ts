@@ -486,6 +486,22 @@ export function useCanvas(options: UseCanvasOptions = {}) {
     }
   }, [])
 
+  const addAudio = useCallback((audioUrl: string, options?: WithCustomProps<RectProps>) => {
+    const renderer = useCanvasStore.getState().renderer
+    if (!renderer) return
+
+    const obj = ObjectFactory.createAudioObject(audioUrl, {
+      left: 100,
+      top: 100,
+      ...options,
+    })
+
+    renderer.addObject(obj, obj.id)
+    useCanvasStore.getState().addObject(obj)
+
+    return obj
+  }, [])
+
   /**
    * Removal & Clear Actions
    */
@@ -663,6 +679,7 @@ export function useCanvas(options: UseCanvasOptions = {}) {
     addTriangle,
     addStickyNote,
     addImage,
+    addAudio,
     removeObject,
     clearAll,
     zoomIn,

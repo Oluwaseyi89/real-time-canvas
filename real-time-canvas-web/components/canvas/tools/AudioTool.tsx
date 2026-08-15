@@ -7,12 +7,14 @@
 
 import { useState, useRef, useEffect, ChangeEvent } from 'react'
 import { useCanvas } from '@/hooks/useCanvas'
+import apiClient from '@/lib/api/client'
 
 interface AudioToolProps {
+  roomId: string
   onAddAudio?: (audioUrl: string) => void
 }
 
-export function AudioTool({ onAddAudio }: AudioToolProps) {
+export function AudioTool({ roomId, onAddAudio }: AudioToolProps) {
   const [isRecording, setIsRecording] = useState(false)
   const [recordingTime, setRecordingTime] = useState(0)
   const [audioUrl, setAudioUrl] = useState<string | null>(null)
@@ -23,8 +25,13 @@ export function AudioTool({ onAddAudio }: AudioToolProps) {
   const audioChunksRef = useRef<BlobPart[]>([])
   const timerRef = useRef<NodeJS.Timeout | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  // `audioUrl` above is only a local blob: preview URL (tab-scoped, doesn't
+  // survive reload or reach other clients) — the actual bytes to upload on
+  // "Add to Canvas" are kept here, separately, from whichever source
+  // produced them (recording or file picker).
+  const audioBlobRef = useRef<Blob | null>(null)
 
-  const { addImage } = useCanvas() // Canvas node creation (placeholder icon with audio metadata)
+  const { addAudio } = useCanvas()
 
   useEffect(() => {
     return () => {
@@ -56,6 +63,7 @@ export function AudioTool({ onAddAudio }: AudioToolProps) {
 
       mediaRecorder.onstop = () => {
         const audioBlob = new Blob(audioChunksRef.current, { type: 'audio/webm' })
+        audioBlobRef.current = audioBlob
         const url = URL.createObjectURL(audioBlob)
         setAudioUrl(url)
 
@@ -95,19 +103,29 @@ export function AudioTool({ onAddAudio }: AudioToolProps) {
   }
 
   const handleAddAudio = async () => {
-    if (!audioUrl) return
+    const blob = audioBlobRef.current
+    if (!audioUrl || !blob) return
     setIsLoading(true)
 
     try {
-      // Creates a visual audio badge node on canvas
-      const obj = await addImage('/audio-icon-placeholder.png', {
+      // Upload the actual bytes so the badge's audioUrl is a real,
+      // permanent URL every collaborator's browser can play — the blob:
+      // preview URL above only resolves in this tab.
+      const filename = blob instanceof File ? blob.name : `recording-${Date.now()}.webm`
+      const uploadFile = blob instanceof File ? blob : new File([blob], filename, { type: blob.type || 'audio/webm' })
+      const { data } = await apiClient.uploadMedia(roomId, uploadFile)
+
+      // Creates a real, playable audio badge (ObjectFactory.createAudioObject
+      // wires up double-click-to-play) instead of a static placeholder icon.
+      const obj = addAudio(data.url, {
         left: 100,
         top: 100,
       })
 
       if (obj) {
-        obj.set('metadata', { audioUrl })
-        onAddAudio?.(audioUrl)
+        onAddAudio?.(data.url)
+        URL.revokeObjectURL(audioUrl)
+        audioBlobRef.current = null
         setAudioUrl(null)
         setRecordingTime(0)
       }
@@ -129,6 +147,7 @@ export function AudioTool({ onAddAudio }: AudioToolProps) {
     }
 
     setError(null)
+    audioBlobRef.current = file
     const url = URL.createObjectURL(file)
     setAudioUrl(url)
   }
@@ -138,6 +157,7 @@ export function AudioTool({ onAddAudio }: AudioToolProps) {
       URL.revokeObjectURL(audioUrl)
       setAudioUrl(null)
     }
+    audioBlobRef.current = null
     setRecordingTime(0)
     if (fileInputRef.current) {
       fileInputRef.current.value = ''

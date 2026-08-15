@@ -46,5 +46,8 @@ temp/
 coverage.out
 coverage.html
 
+# Local media storage fallback (see internal/storage/local.go)
+uploads/
+
 # # Go mod cache
 # go.sum

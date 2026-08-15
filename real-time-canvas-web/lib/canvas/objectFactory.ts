@@ -290,6 +290,15 @@ export class ObjectFactory {
       subTargetCheck: true,
     })
 
+    // Double-click (not single-click) so selecting/dragging the note like
+    // any other object doesn't also trigger playback on every click.
+    group.on('mousedblclick', () => {
+      const player = new Audio(audioUrl)
+      player.play().catch((error) => {
+        console.error('[ObjectFactory] Failed to play audio:', error)
+      })
+    })
+
     return attachCustomProps(group, 'audio', {
       createdBy,
       metadata: {

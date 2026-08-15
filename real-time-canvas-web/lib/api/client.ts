@@ -40,10 +40,11 @@ class ApiClient {
         // (previously an unsigned header any client could set to any value).
         const token = this.getToken()
         if (token) {
-          config.headers = {
-            ...config.headers,
-            Authorization: `Bearer ${token}`,
-          }
+          // Mutate in place rather than `config.headers = {...config.headers, ...}`,
+          // which would rebuild axios's internal AxiosHeaders instance as a
+          // plain object and drop its class methods.
+          config.headers = config.headers || {}
+          config.headers.Authorization = `Bearer ${token}`
         }
 
         return config
@@ -181,6 +182,47 @@ class ApiClient {
 
   async getSyncEvents(roomId: string, since?: number) {
     return this.get(`/rooms/${roomId}/events`, { params: since ? { since } : undefined })
+  }
+
+  // Media upload - image/audio files attached to canvas objects. Passing a
+  // FormData body makes axios drop the instance's default
+  // 'Content-Type: application/json' header and let the browser set
+  // 'multipart/form-data; boundary=...' itself — no manual header needed.
+  async uploadMedia(roomId: string, file: File): Promise<ApiResponse<{ url: string; filename: string; contentType: string; size: number }>> {
+    const formData = new FormData()
+    formData.append('file', file)
+
+    // Deliberately bypasses the shared axios instance (this.client): its
+    // 'Content-Type: application/json' default header makes axios
+    // JSON.stringify the FormData instead of sending real multipart data —
+    // axios only lets the browser set the multipart boundary itself when
+    // no Content-Type is already configured. A bare fetch has no such
+    // default, so passing a FormData body here just works.
+    const token = this.getToken()
+    let response: Response
+    try {
+      response = await fetch(`${this.baseURL}/rooms/${roomId}/media`, {
+        method: 'POST',
+        headers: token ? { Authorization: `Bearer ${token}` } : undefined,
+        body: formData,
+      })
+    } catch (err) {
+      throw this.handleError({ message: err instanceof Error ? err.message : 'Network error occurred' })
+    }
+
+    const body = await response.json().catch(() => ({}))
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        this.clearToken()
+        if (typeof window !== 'undefined') {
+          window.location.href = '/'
+        }
+      }
+      throw this.handleError({ response: { status: response.status, data: body } })
+    }
+
+    return { data: body, status: response.status }
   }
 
   // Generic HTTP methods
