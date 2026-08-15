@@ -13,6 +13,7 @@ func SetupRouter(
 	authHandler *handlers.AuthHandler,
 	roomHandler *handlers.RoomHandler,
 	canvasHandler *handlers.CanvasHandler,
+	syncHandler *handlers.SyncHandler,
 	wsHandler *handlers.WebSocketHandler,
 	jwtService *jwtpkg.Service,
 ) *gin.Engine {
@@ -67,6 +68,10 @@ func SetupRouter(
 			protected.DELETE("/rooms/:id/objects/:objectId", canvasHandler.DeleteObject)
 			protected.POST("/rooms/:id/objects/batch", canvasHandler.BatchCreateObjects)
 			protected.POST("/rooms/:id/objects/clear", canvasHandler.ClearRoomObjects)
+
+			// Sync routes - offline queue replay for reconnecting clients
+			protected.POST("/rooms/:id/events", syncHandler.CreateEvent)
+			protected.GET("/rooms/:id/events", syncHandler.GetEvents)
 		}
 	}
 

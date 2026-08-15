@@ -6,7 +6,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { OfflineDB, createOfflineDB } from '@/lib/offline/indexDB'
 import { SyncEngine, createSyncEngine } from '@/lib/offline/syncEngine'
-import type { OfflineOperation, OfflineSyncStatus } from '@/types/offline'
+import type { OfflineOperation, OfflineSyncStatus, SyncEventRecord } from '@/types/offline'
 import * as Y from 'yjs'
 
 interface UseOfflineSyncOptions {
@@ -51,7 +51,7 @@ export function useOfflineSync(options: UseOfflineSyncOptions) {
       if (!mountedRef.current) return
       setDb(offlineDB)
 
-      const engine = await createSyncEngine(offlineDB)
+      const engine = await createSyncEngine(offlineDB, roomId)
       if (!mountedRef.current) return
 
       // Register callbacks
@@ -92,7 +92,7 @@ export function useOfflineSync(options: UseOfflineSyncOptions) {
     } catch (error) {
       console.error('[useOfflineSync] Initialization failed:', error)
     }
-  }, [enabled, onSyncStart, onSyncComplete, onSyncError])
+  }, [enabled, roomId, onSyncStart, onSyncComplete, onSyncError])
 
   /**
    * Update sync status
@@ -130,6 +130,25 @@ export function useOfflineSync(options: UseOfflineSyncOptions) {
     await syncEngine.processQueue()
     await updateStatus(syncEngine)
   }, [syncEngine, updateStatus])
+
+  /**
+   * Fetch sync events missed while offline/disconnected (does not apply
+   * them — the caller owns how a given eventType gets replayed onto the
+   * canvas, since this hook has no Fabric/canvas context of its own)
+   */
+  const fetchMissedEvents = useCallback(async (): Promise<SyncEventRecord[]> => {
+    if (!syncEngine) return []
+    return syncEngine.fetchMissedEvents()
+  }, [syncEngine])
+
+  /**
+   * Confirm missed events up to `version` were actually applied, so the
+   * next fetchMissedEvents doesn't re-fetch them
+   */
+  const acknowledgeSyncVersion = useCallback(async (version: number): Promise<void> => {
+    if (!syncEngine) return
+    await syncEngine.acknowledgeSyncVersion(version)
+  }, [syncEngine])
 
   /**
    * Get or create a Yjs document
@@ -208,6 +227,8 @@ export function useOfflineSync(options: UseOfflineSyncOptions) {
     status,
     queueOperation,
     processQueue,
+    fetchMissedEvents,
+    acknowledgeSyncVersion,
     getDocument,
     syncDocument,
     updateOnlineStatus,
