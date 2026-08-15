@@ -7,14 +7,16 @@
 
 import { useState, useRef, ChangeEvent, DragEvent } from 'react'
 import { useCanvas } from '@/hooks/useCanvas'
+import apiClient from '@/lib/api/client'
 
 interface ImageToolProps {
+  roomId: string
   onAddImage?: (url: string) => void
 }
 
 type TabMode = 'file' | 'url'
 
-export function ImageTool({ onAddImage }: ImageToolProps) {
+export function ImageTool({ roomId, onAddImage }: ImageToolProps) {
   const [tab, setTab] = useState<TabMode>('file')
   const [imageUrl, setImageUrl] = useState('')
   const [isLoading, setIsLoading] = useState(false)
@@ -55,8 +57,13 @@ export function ImageTool({ onAddImage }: ImageToolProps) {
     setError(null)
 
     try {
-      const url = URL.createObjectURL(file)
-      const obj = await addImage(url)
+      // Upload to the backend (S3 or local disk — see media_service.go) so
+      // the returned URL is a real, permanent one every collaborator's
+      // browser can load — a blob: URL only ever resolves in the tab that
+      // created it, so other clients (and this tab after a reload) would
+      // see a broken image.
+      const { data } = await apiClient.uploadMedia(roomId, file)
+      const obj = await addImage(data.url)
       if (obj) {
         onAddImage?.(file.name)
       }

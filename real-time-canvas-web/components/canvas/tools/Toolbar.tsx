@@ -72,9 +72,10 @@ const TOOLS: ToolDefinition[] = [
 
 interface ToolbarProps {
   className?: string
+  roomId: string
 }
 
-export function Toolbar({ className = '' }: ToolbarProps) {
+export function Toolbar({ className = '', roomId }: ToolbarProps) {
   const [activeTool, setActiveTool] = useState<ToolType>(null)
   const [isOpen, setIsOpen] = useState(true)
 
@@ -114,11 +115,11 @@ export function Toolbar({ className = '' }: ToolbarProps) {
       case 'shape':
         return <ShapeTool onAddShape={handleToolAdded} />
       case 'image':
-        return <ImageTool onAddImage={handleToolAdded} />
+        return <ImageTool roomId={roomId} onAddImage={handleToolAdded} />
       case 'sticky':
         return <StickyNoteTool onAddSticky={handleToolAdded} />
       case 'audio':
-        return <AudioTool onAddAudio={handleToolAdded} />
+        return <AudioTool roomId={roomId} onAddAudio={handleToolAdded} />
       default:
         return null
     }

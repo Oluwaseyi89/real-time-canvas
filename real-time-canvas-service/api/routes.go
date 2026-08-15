@@ -14,13 +14,21 @@ func SetupRouter(
 	roomHandler *handlers.RoomHandler,
 	canvasHandler *handlers.CanvasHandler,
 	syncHandler *handlers.SyncHandler,
+	mediaHandler *handlers.MediaHandler,
 	wsHandler *handlers.WebSocketHandler,
 	jwtService *jwtpkg.Service,
+	localUploadDir string,
 ) *gin.Engine {
 	router := gin.Default()
 
 	// CORS middleware
 	router.Use(middleware.CORS())
+
+	// Serves files saved by storage.LocalStorage (the fallback backend used
+	// when S3 isn't configured — see config.NewStorage). Harmless to
+	// register even when S3 is active: the directory just stays empty and
+	// nothing ever requests these paths.
+	router.Static("/uploads", localUploadDir)
 
 	// Health check
 	router.GET("/health", func(c *gin.Context) {
@@ -72,6 +80,9 @@ func SetupRouter(
 			// Sync routes - offline queue replay for reconnecting clients
 			protected.POST("/rooms/:id/events", syncHandler.CreateEvent)
 			protected.GET("/rooms/:id/events", syncHandler.GetEvents)
+
+			// Media upload - images/audio attached to canvas objects
+			protected.POST("/rooms/:id/media", mediaHandler.UploadMedia)
 		}
 	}
 

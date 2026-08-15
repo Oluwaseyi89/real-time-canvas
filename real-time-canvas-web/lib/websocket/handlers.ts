@@ -3,15 +3,16 @@
  * Processes incoming WebSocket messages and updates canvas state
  */
 
-import { 
-  Canvas, 
-  Object as FabricObject, 
-  IText, 
-  Rect, 
-  Circle, 
+import {
+  Canvas,
+  Object as FabricObject,
+  IText,
+  Rect,
+  Circle,
   FabricImage,
   TPointerEvent,
 } from 'fabric'
+import { ObjectFactory } from '@/lib/canvas/objectFactory'
 import type {
   WebSocketMessage,
   ObjectCreatePayload,
@@ -102,6 +103,19 @@ export class WebSocketHandlers {
             ...data,
           })
           obj = circleObj
+          break
+        }
+        case 'audio': {
+          // Reuses the same factory AudioTool.tsx uses, so remote clients
+          // get an identically playable (double-click) badge, not just a
+          // static icon — otherwise only the uploading client could ever
+          // hear it.
+          const audioUrl = (data?.metadata as { audioUrl?: string } | undefined)?.audioUrl || ''
+          const group = ObjectFactory.createAudioObject(audioUrl, {
+            left: position.x,
+            top: position.y,
+          })
+          obj = group
           break
         }
         case 'image': {

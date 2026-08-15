@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"time"
@@ -67,6 +68,13 @@ func main() {
 	}
 	_ = redisService // Will be used for session management
 
+	// Initialize media storage — S3 if configured, local disk otherwise
+	mediaStorage, storageLabel, err := cfg.NewStorage(context.Background())
+	if err != nil {
+		log.Fatalf("Failed to initialize media storage: %v", err)
+	}
+	log.Printf("Media storage backend: %s", storageLabel)
+
 	// Initialize repositories
 	userRepo := postgres.NewUserRepository(cfg.DB)
 	roomRepo := postgres.NewRoomRepository(cfg.DB)
@@ -78,12 +86,14 @@ func main() {
 	roomService := services.NewRoomService(roomRepo, userRepo, canvasRepo)
 	canvasService := services.NewCanvasService(canvasRepo, roomRepo, userRepo)
 	syncService := services.NewSyncService(syncRepo, roomRepo)
+	mediaService := services.NewMediaService(mediaStorage, roomRepo, cfg.MediaMaxUploadMB)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(userService, jwtService)
 	roomHandler := handlers.NewRoomHandler(roomService)
 	canvasHandler := handlers.NewCanvasHandler(canvasService)
 	syncHandler := handlers.NewSyncHandler(syncService)
+	mediaHandler := handlers.NewMediaHandler(mediaService)
 
 	// Initialize WebSocket hub
 	hub := websocket.NewHub(canvasService)
@@ -94,7 +104,7 @@ func main() {
 	log.Println("WebSocket hub started")
 
 	// Setup router
-	router := api.SetupRouter(authHandler, roomHandler, canvasHandler, syncHandler, wsHandler, jwtService)
+	router := api.SetupRouter(authHandler, roomHandler, canvasHandler, syncHandler, mediaHandler, wsHandler, jwtService, cfg.LocalUploadDir)
 
 	// Start server
 	port := os.Getenv("PORT")
