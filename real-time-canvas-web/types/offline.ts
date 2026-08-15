@@ -80,3 +80,17 @@ export interface YjsDocMetadata {
   version: number
   size: number
 }
+
+/**
+ * A sync event as returned by GET /rooms/:id/events?since=<version> —
+ * mirrors the backend's SyncEventResponse DTO.
+ */
+export interface SyncEventRecord {
+  id: string
+  roomId: string
+  userId: string
+  eventType: OfflineOperationType | string
+  payload: Record<string, unknown>
+  version: number
+  createdAt: string
+}

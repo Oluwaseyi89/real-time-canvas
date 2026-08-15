@@ -89,6 +89,8 @@ export default function CanvasRoomPage() {
   const {
     queueOperation,
     processQueue,
+    fetchMissedEvents,
+    acknowledgeSyncVersion,
     status: offlineStatus,
     isReady: offlineReady,
   } = useOfflineSync({
@@ -96,6 +98,75 @@ export default function CanvasRoomPage() {
     userId,
     enabled: true,
   })
+
+  // Missed-sync catch-up: on every (re)connect, fetch sync events recorded
+  // on the server while this client was offline/disconnected (or simply
+  // never connected before) and replay them onto the canvas via the same
+  // handlers WebSocketHandlers uses for live object:create/update/delete
+  // messages — those are idempotent (handleObjectCreate skips if the id
+  // already exists, handleObjectDelete/Update no-op if it doesn't), so
+  // replaying events this client already has is harmless.
+  const applyMissedSyncEvents = useCallback(async () => {
+    if (!offlineReady) return
+
+    try {
+      const events = await fetchMissedEvents()
+      if (events.length === 0) return
+
+      // Canvas isn't mounted yet (e.g. this fired right after connect, before
+      // useCanvas's init effect ran) — bail out WITHOUT acknowledging, so
+      // these events stay "missed" and the next successful catch-up retries
+      // them instead of losing them silently.
+      const canvas = useCanvasStore.getState().canvas
+      if (!canvas) return
+
+      const context: CanvasEventHandlerContext = {
+        canvas,
+        addObject: (obj) => useCanvasStore.getState().addObject(obj),
+        removeObject: (id) => {
+          remoteOriginDeletesRef.current.add(id)
+          useCanvasStore.getState().removeObject(id)
+        },
+        updateObject: (id, props) => useCanvasStore.getState().updateObject(id, props),
+      }
+      // `client` goes unused by handleObjectCreate/Update/Delete — WebSocketHandlers
+      // only stores it for methods this replay path doesn't call — so a real
+      // WebSocketClient isn't needed here.
+      const replayHandlers = createWebSocketHandlers(context, null as any)
+
+      for (const event of events) {
+        const message = {
+          id: event.id,
+          type: event.eventType,
+          roomId: event.roomId,
+          userId: event.userId,
+          timestamp: new Date(event.createdAt).getTime(),
+          payload: event.payload,
+        } as any
+
+        switch (event.eventType) {
+          case 'object:create':
+            replayHandlers.handleObjectCreate(message)
+            break
+          case 'object:update':
+            replayHandlers.handleObjectUpdate(message)
+            break
+          case 'object:delete':
+            replayHandlers.handleObjectDelete(message)
+            break
+          default:
+            console.debug('[CanvasRoom] Skipping missed sync event of unreplayed type:', event.eventType)
+        }
+      }
+
+      const maxVersion = events.reduce((max, e) => Math.max(max, e.version), 0)
+      await acknowledgeSyncVersion(maxVersion)
+
+      console.log(`[CanvasRoom] Applied ${events.length} missed sync event(s)`)
+    } catch (error) {
+      console.error('[CanvasRoom] Failed to apply missed sync events:', error)
+    }
+  }, [offlineReady, fetchMissedEvents, acknowledgeSyncVersion])
 
   // Time travel setup
   const { recordEvent, isRecording, isReplaying } = useTimeTravel({
@@ -378,6 +449,28 @@ export default function CanvasRoomPage() {
   const canvas = useCanvasStore((state) => state.canvas)
   const physicsEnabled = useCanvasStore((state) => state.physicsEnabled)
   const physicsGravity = useCanvasStore((state) => state.physicsGravity)
+
+  // Fetch-missed-events catch-up. Deliberately NOT done from useWebSocket's
+  // onConnect callback: that fires the instant the socket opens, which can
+  // race ahead of both useOfflineSync's async IndexedDB init (offlineReady
+  // still false) and useCanvas's own init effect (canvas still null) —
+  // either gap meant applyMissedSyncEvents bailed out silently. Reacting to
+  // all three readiness signals here instead fires once as soon as they're
+  // ALL true regardless of which settles last, and appliedForConnectionRef
+  // resets on disconnect so the next reconnect (not just the first-ever
+  // connect) fetches again.
+  const appliedForConnectionRef = useRef(false)
+  useEffect(() => {
+    if (isConnected && offlineReady && canvas) {
+      if (!appliedForConnectionRef.current) {
+        appliedForConnectionRef.current = true
+        applyMissedSyncEvents()
+      }
+    } else {
+      appliedForConnectionRef.current = false
+    }
+  }, [isConnected, offlineReady, canvas, applyMissedSyncEvents])
+
   useEffect(() => {
     if (!client || !canvas) return
 

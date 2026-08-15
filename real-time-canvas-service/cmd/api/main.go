@@ -71,16 +71,19 @@ func main() {
 	userRepo := postgres.NewUserRepository(cfg.DB)
 	roomRepo := postgres.NewRoomRepository(cfg.DB)
 	canvasRepo := postgres.NewCanvasRepository(cfg.DB)
+	syncRepo := postgres.NewSyncRepository(cfg.DB)
 
 	// Initialize services
 	userService := services.NewUserService(userRepo)
 	roomService := services.NewRoomService(roomRepo, userRepo, canvasRepo)
 	canvasService := services.NewCanvasService(canvasRepo, roomRepo, userRepo)
+	syncService := services.NewSyncService(syncRepo, roomRepo)
 
 	// Initialize handlers
 	authHandler := handlers.NewAuthHandler(userService, jwtService)
 	roomHandler := handlers.NewRoomHandler(roomService)
 	canvasHandler := handlers.NewCanvasHandler(canvasService)
+	syncHandler := handlers.NewSyncHandler(syncService)
 
 	// Initialize WebSocket hub
 	hub := websocket.NewHub(canvasService)
@@ -91,7 +94,7 @@ func main() {
 	log.Println("WebSocket hub started")
 
 	// Setup router
-	router := api.SetupRouter(authHandler, roomHandler, canvasHandler, wsHandler, jwtService)
+	router := api.SetupRouter(authHandler, roomHandler, canvasHandler, syncHandler, wsHandler, jwtService)
 
 	// Start server
 	port := os.Getenv("PORT")

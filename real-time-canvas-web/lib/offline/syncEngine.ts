@@ -5,7 +5,8 @@
 
 import * as Y from 'yjs'
 import { OfflineDB } from './indexDB'
-import type { OfflineOperation, OfflineSyncStatus, OfflineOperationType } from '@/types/offline'
+import apiClient from '@/lib/api/client'
+import type { OfflineOperation, OfflineSyncStatus, OfflineOperationType, SyncEventRecord } from '@/types/offline'
 import type { WebSocketMessage } from '@/types/websocket'
 
 /**
@@ -13,6 +14,7 @@ import type { WebSocketMessage } from '@/types/websocket'
  */
 export class SyncEngine {
   private db: OfflineDB
+  private roomId: string
   private isOnline: boolean = true
   private isSyncing: boolean = false
   private syncQueue: OfflineOperation[] = []
@@ -25,8 +27,9 @@ export class SyncEngine {
     onConflict?: (local: unknown, remote: unknown) => unknown
   } = {}
 
-  constructor(db: OfflineDB) {
+  constructor(db: OfflineDB, roomId: string) {
     this.db = db
+    this.roomId = roomId
     this.init()
   }
 
@@ -133,17 +136,48 @@ export class SyncEngine {
   }
 
   /**
-   * Apply an operation (mock implementation)
+   * Apply an operation by replaying it against the server as a sync event.
+   * `queueOperation`'s caller already scoped this engine to one room (see
+   * `createSyncEngine`), so `roomId` isn't part of the operation payload.
    */
   private async applyOperation(operation: OfflineOperation): Promise<{ success: boolean; error?: string }> {
-    // In production, this would communicate with the server
-    // For now, we simulate success
-    console.log(`[SyncEngine] Applying operation: ${operation.type}`, operation.payload)
-    
-    // Simulate network delay
-    await new Promise(resolve => setTimeout(resolve, 100))
-    
-    return { success: true }
+    try {
+      await apiClient.createSyncEvent(this.roomId, {
+        eventType: operation.type,
+        payload: operation.payload,
+      })
+      return { success: true }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : (error as { message?: string })?.message
+      return { success: false, error: message || 'Sync request failed' }
+    }
+  }
+
+  /**
+   * Fetch sync events this client missed while offline/disconnected — i.e.
+   * everything recorded for this room with a version greater than the last
+   * one this client has acknowledged. Does NOT advance the stored version
+   * itself — the caller may not be able to apply these events yet (e.g. the
+   * canvas hasn't mounted), so the version only moves once
+   * `acknowledgeSyncVersion` confirms they were actually applied. Fetching
+   * the same events again on a retry is safe: object:create/update/delete
+   * replay is idempotent.
+   */
+  async fetchMissedEvents(): Promise<SyncEventRecord[]> {
+    const since = await this.db.getSyncVersion(this.roomId)
+    const response = await apiClient.getSyncEvents(this.roomId, since)
+    return (response.data || []) as SyncEventRecord[]
+  }
+
+  /**
+   * Record that this client has successfully applied everything up to
+   * `version`, so the next fetchMissedEvents only asks for what's newer.
+   */
+  async acknowledgeSyncVersion(version: number): Promise<void> {
+    const current = await this.db.getSyncVersion(this.roomId)
+    if (version > current) {
+      await this.db.setSyncVersion(this.roomId, version)
+    }
   }
 
   /**
@@ -296,8 +330,8 @@ export class SyncEngine {
 }
 
 /**
- * Create a new sync engine instance
+ * Create a new sync engine instance, scoped to one room
  */
-export async function createSyncEngine(db: OfflineDB): Promise<SyncEngine> {
-  return new SyncEngine(db)
+export async function createSyncEngine(db: OfflineDB, roomId: string): Promise<SyncEngine> {
+  return new SyncEngine(db, roomId)
 }

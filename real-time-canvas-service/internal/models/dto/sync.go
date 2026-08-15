@@ -1,5 +1,12 @@
 package dto
 
+import (
+	"encoding/json"
+	"time"
+
+	"gorm.io/datatypes"
+)
+
 // SyncEventResponse is the sync event sent to clients
 type SyncEventResponse struct {
 	ID        string                 `json:"id"`
@@ -15,4 +22,27 @@ type SyncEventResponse struct {
 type CreateSyncEventRequest struct {
 	EventType string                 `json:"eventType" binding:"required"`
 	Payload   map[string]interface{} `json:"payload"`
+}
+
+// ToSyncEventResponse converts a SyncEvent to a SyncEventResponse
+func ToSyncEventResponse(
+	id, roomID, userID, eventType string,
+	payload datatypes.JSON,
+	version int,
+	createdAt time.Time,
+) SyncEventResponse {
+	var payloadMap map[string]interface{}
+	if len(payload) > 0 {
+		_ = json.Unmarshal(payload, &payloadMap)
+	}
+
+	return SyncEventResponse{
+		ID:        id,
+		RoomID:    roomID,
+		UserID:    userID,
+		EventType: eventType,
+		Payload:   payloadMap,
+		Version:   version,
+		CreatedAt: createdAt.Format(time.RFC3339),
+	}
 }

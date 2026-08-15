@@ -207,6 +207,22 @@ export class OfflineDB {
   }
 
   /**
+   * Get the highest sync-event version applied for a room, so a reconnect
+   * only fetches what happened after it (defaults to 0 = "everything").
+   */
+  async getSyncVersion(roomId: string): Promise<number> {
+    const value = await this.db.getItem<number>(`syncVersion_${roomId}`)
+    return value ?? 0
+  }
+
+  /**
+   * Save the highest sync-event version applied for a room
+   */
+  async setSyncVersion(roomId: string, version: number): Promise<void> {
+    await this.db.setItem(`syncVersion_${roomId}`, version)
+  }
+
+  /**
    * Save app version
    */
   async setVersion(version: string): Promise<void> {

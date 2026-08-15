@@ -174,6 +174,15 @@ class ApiClient {
     return this.post(`/rooms/${roomId}/objects/clear`, {})
   }
 
+  // Sync endpoints - offline queue replay for reconnecting clients
+  async createSyncEvent(roomId: string, data: { eventType: string; payload: Record<string, unknown> }) {
+    return this.post(`/rooms/${roomId}/events`, data)
+  }
+
+  async getSyncEvents(roomId: string, since?: number) {
+    return this.get(`/rooms/${roomId}/events`, { params: since ? { since } : undefined })
+  }
+
   // Generic HTTP methods
   async get(url: string, config?: any): Promise<ApiResponse> {
     const response = await this.client.get(url, config)
