@@ -81,6 +81,26 @@ export class EventStoreImpl implements EventStore {
   }
 
   /**
+   * Replace the event log wholesale with a server-fetched, version-ordered
+   * list. Used to make this store mirror the room's authoritative
+   * sync_events history (recorded by the backend on every mutation) instead
+   * of only whatever this client itself appended locally — IndexedDB is
+   * kept as an offline-readable cache of the last known server state, not
+   * the source of truth.
+   */
+  async replaceEvents(events: SessionEvent[]): Promise<void> {
+    if (!this.initialized) {
+      await this.initialize()
+    }
+
+    this.events = events
+
+    if (this.db) {
+      await this.db.setItem('events', this.events)
+    }
+  }
+
+  /**
    * Append a snapshot to the store
    */
   async appendSnapshot(snapshot: CanvasSnapshot): Promise<void> {

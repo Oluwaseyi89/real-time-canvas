@@ -6,10 +6,17 @@
 import { Canvas, Object as FabricObject } from 'fabric'
 import type { SessionEvent, CanvasSnapshot, ReplayOptions } from '@/types/time-travel'
 import { EventStoreImpl, createEventStore } from './EventStore'
+import { createWebSocketHandlers, WebSocketHandlers, type CanvasEventHandlerContext } from '@/lib/websocket/handlers'
 
 export class TimeTravelEngine {
   private eventStore: EventStoreImpl
   private canvas: Canvas | null = null
+  // Reconstructs objects from event payloads via the same type-to-Fabric-
+  // object switch WebSocketHandlers already uses for live object:create
+  // messages and missed-sync-event catch-up — reusing it here means replay
+  // renders real objects (including audio/image, via ObjectFactory) instead
+  // of duplicating that switch statement a third time.
+  private wsHandlers: WebSocketHandlers | null = null
   private isPlaying: boolean = false
   private isPaused: boolean = false
   private currentEventIndex: number = 0
@@ -32,6 +39,33 @@ export class TimeTravelEngine {
    */
   setCanvas(canvas: Canvas): void {
     this.canvas = canvas
+
+    const context: CanvasEventHandlerContext = {
+      canvas,
+      addObject: (obj) => {
+        canvas.add(obj)
+        canvas.requestRenderAll()
+      },
+      removeObject: (id) => {
+        const obj = canvas.getObjects().find((o: any) => o.id === id)
+        if (obj) {
+          canvas.remove(obj)
+          canvas.requestRenderAll()
+        }
+      },
+      updateObject: (id, props) => {
+        const obj = canvas.getObjects().find((o: any) => o.id === id)
+        if (obj) {
+          obj.set(props as Partial<FabricObject>)
+          obj.setCoords()
+          canvas.requestRenderAll()
+        }
+      },
+    }
+    // `client` goes unused by handleObjectCreate/Update/Delete — same as
+    // the missed-sync-events replay path in the room page — so a real
+    // WebSocketClient isn't needed here either.
+    this.wsHandlers = createWebSocketHandlers(context, null as any)
   }
 
   /**
@@ -143,14 +177,20 @@ export class TimeTravelEngine {
   }
 
   /**
-   * Step forward one event
+   * Step forward one event. Applies the event at the current index first,
+   * then advances — matching replayLoop's own apply-then-increment order —
+   * so the very first call from a fresh/rewound state (currentEventIndex
+   * still 0) actually applies event 0 instead of skipping straight to
+   * event 1. Incrementing before applying (the previous order here) meant
+   * the first event in any room's history could never be replayed via
+   * step-forward, only via play() or seek(0).
    */
   stepForward(): void {
     const events = this.eventStore.getAllEvents()
-    if (this.currentEventIndex < events.length - 1) {
-      this.currentEventIndex++
+    if (this.currentEventIndex < events.length) {
       this.applyEvent(events[this.currentEventIndex])
       this.callbacks.onEvent?.(events[this.currentEventIndex], this.currentEventIndex)
+      this.currentEventIndex++
     }
   }
 
@@ -271,36 +311,40 @@ export class TimeTravelEngine {
   }
 
   /**
-   * Apply object creation
+   * Apply object creation — reconstructs the object via WebSocketHandlers,
+   * same as a live object:create message or a missed-sync-event replay.
+   * Payload shape matches ObjectCreatePayload: { objectId, type, data, position }.
    */
   private applyObjectCreate(data: Record<string, unknown>): void {
-    // Implementation depends on your object creation logic
-    // This is a placeholder
-    console.log('[TimeTravelEngine] Creating object:', data)
+    if (!this.wsHandlers) {
+      console.warn('[TimeTravelEngine] Canvas not set')
+      return
+    }
+    this.wsHandlers.handleObjectCreate({ payload: data } as any)
   }
 
   /**
-   * Apply object update
+   * Apply object update — payload shape matches ObjectUpdatePayload:
+   * { objectId, updates }.
    */
   private applyObjectUpdate(data: Record<string, unknown>): void {
-    const { objectId, updates } = data
-    const obj = this.canvas?.getObjects().find((o: any) => o.id === objectId)
-    if (obj) {
-      obj.set(updates as Partial<FabricObject>)
-      this.canvas?.requestRenderAll()
+    if (!this.wsHandlers) {
+      console.warn('[TimeTravelEngine] Canvas not set')
+      return
     }
+    this.wsHandlers.handleObjectUpdate({ payload: data } as any)
   }
 
   /**
-   * Apply object deletion
+   * Apply object deletion — payload shape matches ObjectDeletePayload:
+   * { objectId }.
    */
   private applyObjectDelete(data: Record<string, unknown>): void {
-    const { objectId } = data
-    const obj = this.canvas?.getObjects().find((o: any) => o.id === objectId)
-    if (obj) {
-      this.canvas?.remove(obj)
-      this.canvas?.requestRenderAll()
+    if (!this.wsHandlers) {
+      console.warn('[TimeTravelEngine] Canvas not set')
+      return
     }
+    this.wsHandlers.handleObjectDelete({ payload: data } as any)
   }
 
   /**

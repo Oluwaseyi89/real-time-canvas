@@ -172,7 +172,6 @@ export default function CanvasRoomPage() {
   const { recordEvent, isRecording, isReplaying } = useTimeTravel({
     enabled: true,
     autoRecord: true,
-    maxEvents: 10000,
   })
 
   // Canvas setup

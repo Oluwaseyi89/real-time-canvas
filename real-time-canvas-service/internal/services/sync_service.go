@@ -43,20 +43,14 @@ func (s *SyncService) CreateEvent(userID, roomID string, req *dto.CreateSyncEven
 		return nil, err
 	}
 
-	maxVersion, err := s.syncRepo.GetMaxVersion(ctx, roomID)
-	if err != nil {
-		return nil, err
-	}
-
 	event := &models.SyncEvent{
 		RoomID:    roomID,
 		UserID:    userID,
 		EventType: req.EventType,
 		Payload:   payloadJSON,
-		Version:   maxVersion + 1,
 	}
 
-	if err := s.syncRepo.Create(ctx, event); err != nil {
+	if err := s.syncRepo.CreateWithNextVersion(ctx, event); err != nil {
 		return nil, err
 	}
 

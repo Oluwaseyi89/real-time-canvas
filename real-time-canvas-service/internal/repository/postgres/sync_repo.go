@@ -18,11 +18,6 @@ func NewSyncRepository(db *gorm.DB) *SyncRepository {
 	return &SyncRepository{db: db}
 }
 
-// Create creates a new sync event
-func (r *SyncRepository) Create(ctx context.Context, event *models.SyncEvent) error {
-	return r.db.WithContext(ctx).Create(event).Error
-}
-
 // FindByRoomIDSince finds all sync events in a room with version greater than since
 func (r *SyncRepository) FindByRoomIDSince(ctx context.Context, roomID string, since int) ([]models.SyncEvent, error) {
 	var events []models.SyncEvent
@@ -42,4 +37,18 @@ func (r *SyncRepository) GetMaxVersion(ctx context.Context, roomID string) (int,
 		Select("COALESCE(MAX(version), 0)").
 		Scan(&max).Error
 	return max, err
+}
+
+// CreateWithNextVersion assigns the event the next room-scoped version (max
+// existing version + 1) and persists it. Centralizes version assignment so
+// every write path — explicit client sync writes via SyncService, and
+// automatic event recording from CanvasService on every canvas mutation —
+// stays consistent instead of duplicating the read-max-then-insert logic.
+func (r *SyncRepository) CreateWithNextVersion(ctx context.Context, event *models.SyncEvent) error {
+	maxVersion, err := r.GetMaxVersion(ctx, event.RoomID)
+	if err != nil {
+		return err
+	}
+	event.Version = maxVersion + 1
+	return r.db.WithContext(ctx).Create(event).Error
 }

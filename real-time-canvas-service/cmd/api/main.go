@@ -84,7 +84,7 @@ func main() {
 	// Initialize services
 	userService := services.NewUserService(userRepo)
 	roomService := services.NewRoomService(roomRepo, userRepo, canvasRepo)
-	canvasService := services.NewCanvasService(canvasRepo, roomRepo, userRepo)
+	canvasService := services.NewCanvasService(canvasRepo, roomRepo, userRepo, syncRepo)
 	syncService := services.NewSyncService(syncRepo, roomRepo)
 	mediaService := services.NewMediaService(mediaStorage, roomRepo, cfg.MediaMaxUploadMB)
 

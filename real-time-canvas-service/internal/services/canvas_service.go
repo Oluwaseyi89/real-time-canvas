@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"log"
 
 	"real-time-canvas/real-time-canvas-service/internal/models"
 	"real-time-canvas/real-time-canvas-service/internal/models/dto"
@@ -15,6 +16,7 @@ type CanvasService struct {
 	canvasRepo *postgres.CanvasRepository
 	roomRepo   *postgres.RoomRepository
 	userRepo   *postgres.UserRepository
+	syncRepo   *postgres.SyncRepository
 }
 
 // NewCanvasService creates a new canvas service
@@ -22,11 +24,39 @@ func NewCanvasService(
 	canvasRepo *postgres.CanvasRepository,
 	roomRepo *postgres.RoomRepository,
 	userRepo *postgres.UserRepository,
+	syncRepo *postgres.SyncRepository,
 ) *CanvasService {
 	return &CanvasService{
 		canvasRepo: canvasRepo,
 		roomRepo:   roomRepo,
 		userRepo:   userRepo,
+		syncRepo:   syncRepo,
+	}
+}
+
+// recordEvent appends a server-authoritative entry to the room's sync_events
+// log for every canvas mutation, regardless of whether it came in through
+// REST or the WebSocket persist* path (both route through this service). This
+// is what makes GET /rooms/:id/events a durable, ordered history a
+// reconnecting client or a time-travel replay can trust, instead of each
+// client's own local-only IndexedDB event log. Recording failures are logged,
+// not returned — the canvas mutation itself already committed and shouldn't
+// be undone over a missed history entry.
+func (s *CanvasService) recordEvent(ctx context.Context, roomID, userID, eventType string, payload map[string]interface{}) {
+	payloadJSON, err := json.Marshal(payload)
+	if err != nil {
+		log.Printf("[CanvasService] failed to marshal event payload for %s: %v", eventType, err)
+		return
+	}
+
+	event := &models.SyncEvent{
+		RoomID:    roomID,
+		UserID:    userID,
+		EventType: eventType,
+		Payload:   payloadJSON,
+	}
+	if err := s.syncRepo.CreateWithNextVersion(ctx, event); err != nil {
+		log.Printf("[CanvasService] failed to record %s event for room %s: %v", eventType, roomID, err)
 	}
 }
 
@@ -87,6 +117,13 @@ func (s *CanvasService) CreateObject(userID, roomID string, req *dto.CreateObjec
 
 	// Increment object count
 	_ = s.roomRepo.IncrementObjectCount(ctx, roomID, 1)
+
+	s.recordEvent(ctx, roomID, userID, "object:create", map[string]interface{}{
+		"objectId": obj.ID,
+		"type":     obj.ObjectType,
+		"data":     req.Data,
+		"position": map[string]float64{"x": obj.PositionX, "y": obj.PositionY},
+	})
 
 	return s.canvasRepo.FindByID(ctx, obj.ID)
 }
@@ -162,6 +199,35 @@ func (s *CanvasService) UpdateObject(objectID, userID string, req *dto.UpdateObj
 		return nil, err
 	}
 
+	updates := map[string]interface{}{}
+	if req.Data != nil {
+		for k, v := range req.Data {
+			updates[k] = v
+		}
+	}
+	if req.PositionX != nil {
+		updates["left"] = *req.PositionX
+	}
+	if req.PositionY != nil {
+		updates["top"] = *req.PositionY
+	}
+	if req.Width != nil {
+		updates["width"] = *req.Width
+	}
+	if req.Height != nil {
+		updates["height"] = *req.Height
+	}
+	if req.Rotation != nil {
+		updates["angle"] = *req.Rotation
+	}
+	if req.ZIndex != nil {
+		updates["zIndex"] = *req.ZIndex
+	}
+	s.recordEvent(ctx, obj.RoomID, userID, "object:update", map[string]interface{}{
+		"objectId": objectID,
+		"updates":  updates,
+	})
+
 	return s.canvasRepo.FindByID(ctx, objectID)
 }
 
@@ -193,6 +259,10 @@ func (s *CanvasService) DeleteObject(objectID, userID string) error {
 
 	// Decrement object count
 	_ = s.roomRepo.IncrementObjectCount(ctx, obj.RoomID, -1)
+
+	s.recordEvent(ctx, obj.RoomID, userID, "object:delete", map[string]interface{}{
+		"objectId": objectID,
+	})
 
 	return nil
 }
@@ -255,6 +325,18 @@ func (s *CanvasService) BatchCreateObjects(userID, roomID string, req *dto.Batch
 	// Increment object count
 	_ = s.roomRepo.IncrementObjectCount(ctx, roomID, len(objects))
 
+	// One object:create event per object (matching the granularity of the
+	// single-object create path) so replay/time-travel can step through a
+	// batch paste the same way it steps through individually created objects.
+	for i, obj := range objects {
+		s.recordEvent(ctx, roomID, userID, "object:create", map[string]interface{}{
+			"objectId": obj.ID,
+			"type":     obj.ObjectType,
+			"data":     req.Objects[i].Data,
+			"position": map[string]float64{"x": obj.PositionX, "y": obj.PositionY},
+		})
+	}
+
 	return s.canvasRepo.FindByRoomID(ctx, roomID)
 }
 
@@ -271,7 +353,13 @@ func (s *CanvasService) ClearRoomObjects(roomID, userID string) error {
 		return errors.New("user is not in room")
 	}
 
-	return s.canvasRepo.DeleteByRoomID(ctx, roomID)
+	if err := s.canvasRepo.DeleteByRoomID(ctx, roomID); err != nil {
+		return err
+	}
+
+	s.recordEvent(ctx, roomID, userID, "canvas:clear", map[string]interface{}{})
+
+	return nil
 }
 
 // GetObjectCount gets the count of objects in a room

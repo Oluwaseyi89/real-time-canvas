@@ -5,28 +5,43 @@
 
 import { useEffect, useState, useCallback, useRef } from 'react'
 import { useCanvasStore } from '@/store/canvasStore'
-import { useAuth } from '@/hooks/useAuth'
 import { useRoom } from '@/hooks/useRoom'
 import { createEventStore } from '@/lib/time-travel/EventStore'
 import { createTimeTravelEngine } from '@/lib/time-travel/TimeTravelEngine'
+import apiClient from '@/lib/api/client'
 import type { SessionEvent, TimeTravelState, ReplayOptions } from '@/types/time-travel'
+import type { SyncEventRecord } from '@/types/offline'
+
+// How often the timeline refetches the server's event log while recording
+// is active, so mutations made by other clients (not just this one) show
+// up without requiring a manual refresh.
+const SERVER_SYNC_POLL_MS = 8000
+// Debounce window after a local mutation before refetching — long enough
+// for the backend to have durably recorded the corresponding sync_events
+// row (it's written synchronously as part of persisting the mutation, so
+// this is slack for network round-trip, not a real wait on server work).
+const SERVER_SYNC_DEBOUNCE_MS = 500
 
 interface UseTimeTravelOptions {
   enabled?: boolean
   autoRecord?: boolean
-  maxEvents?: number
 }
 
 export function useTimeTravel(options: UseTimeTravelOptions = {}) {
   const {
     enabled = true,
     autoRecord = true,
-    maxEvents = 10000,
   } = options
 
   const { canvas } = useCanvasStore()
-  const { userId } = useAuth()
   const { currentRoom } = useRoom()
+  // useRoom() hands back a fresh `currentRoom` object on every fetch, even
+  // when the room itself hasn't changed — depending on the object directly
+  // would rebuild syncFromServer/initialize (and retrigger every effect
+  // keyed on them) on every one of those refetches. The room's id is the
+  // only part either function actually needs, and it stays referentially
+  // stable across those refetches even when the object doesn't.
+  const roomId = currentRoom?.id
 
   const [state, setState] = useState<TimeTravelState>({
     isRecording: false,
@@ -44,20 +59,57 @@ export function useTimeTravel(options: UseTimeTravelOptions = {}) {
   const eventStoreRef = useRef<any>(null)
   const engineRef = useRef<any>(null)
   const isRecordingRef = useRef(false)
+  const syncDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  /**
+   * Pull the room's full, version-ordered event history from the backend
+   * (every canvas mutation — REST or WebSocket-persisted, from any client —
+   * is durably recorded there) and make it the timeline's source of truth,
+   * replacing whatever this store previously had. This is what makes time
+   * travel reproducible across reloads and across clients, instead of only
+   * covering what this one browser tab happened to record locally.
+   */
+  const syncFromServer = useCallback(async () => {
+    if (!roomId || !eventStoreRef.current) return
+
+    try {
+      const { data } = await apiClient.getSyncEvents(roomId)
+      const records = (data || []) as SyncEventRecord[]
+      const events: SessionEvent[] = records.map((record) => ({
+        id: record.id,
+        type: record.eventType as SessionEvent['type'],
+        timestamp: Date.parse(record.createdAt),
+        userId: record.userId,
+        roomId: record.roomId,
+        data: record.payload,
+        version: record.version,
+      }))
+
+      await eventStoreRef.current.replaceEvents(events)
+
+      setState(prev => ({
+        ...prev,
+        events,
+        duration: events.length > 0 ? events[events.length - 1].timestamp - events[0].timestamp : 0,
+      }))
+    } catch (error) {
+      console.error('[useTimeTravel] Failed to sync events from server:', error)
+    }
+  }, [roomId])
 
   /**
    * Initialize time travel
    */
   const initialize = useCallback(async () => {
-    if (!enabled || !currentRoom) return
+    if (!enabled || !roomId) return
 
     try {
       // Create event store
-      const store = await createEventStore(currentRoom.id)
+      const store = await createEventStore(roomId)
       eventStoreRef.current = store
 
       // Create time travel engine
-      const engine = await createTimeTravelEngine(currentRoom.id)
+      const engine = await createTimeTravelEngine(roomId)
       engineRef.current = engine
 
       if (canvas) {
@@ -88,6 +140,10 @@ export function useTimeTravel(options: UseTimeTravelOptions = {}) {
         }))
       })
 
+      // Hydrate the timeline with the room's real history before anything
+      // else, so it's populated even if autoRecord is off.
+      await syncFromServer()
+
       // Start recording if auto-record is enabled
       if (autoRecord) {
         await startRecording()
@@ -97,7 +153,7 @@ export function useTimeTravel(options: UseTimeTravelOptions = {}) {
     } catch (error) {
       console.error('[useTimeTravel] Failed to initialize:', error)
     }
-  }, [enabled, currentRoom, canvas, autoRecord])
+  }, [enabled, roomId, canvas, autoRecord, syncFromServer])
 
   /**
    * Start recording events
@@ -122,39 +178,29 @@ export function useTimeTravel(options: UseTimeTravelOptions = {}) {
   }, [])
 
   /**
-   * Record an event
+   * Note that a local mutation just happened. The mutation is already being
+   * durably recorded server-side (CanvasService appends a sync_events row
+   * as part of persisting it) — appending a second, client-only copy here
+   * would just duplicate that row once synced, so this instead debounces a
+   * refetch of the room's real event log. The `type`/`data` args are kept
+   * so call sites (onObjectAdded/onObjectModified/onObjectRemoved) don't
+   * need to change even though they're no longer used to build the event
+   * locally.
    */
-  const recordEvent = useCallback(async (
-    type: SessionEvent['type'],
-    data: Record<string, unknown>
+  const recordEvent = useCallback((
+    _type: SessionEvent['type'],
+    _data: Record<string, unknown>
   ) => {
-    if (!enabled || !isRecordingRef.current || !eventStoreRef.current) return
+    if (!enabled || !isRecordingRef.current) return
 
-    // Limit events to prevent memory issues
-    const eventCount = eventStoreRef.current.getEventCount()
-    if (eventCount >= maxEvents) {
-      console.warn('[useTimeTravel] Max events reached, stopping recording')
-      await stopRecording()
-      return
+    if (syncDebounceRef.current) {
+      clearTimeout(syncDebounceRef.current)
     }
-
-    try {
-      const event = await eventStoreRef.current.appendEvent({
-        type,
-        userId: userId || 'unknown',
-        roomId: currentRoom?.id || 'unknown',
-        data,
-      })
-
-      setState(prev => ({
-        ...prev,
-        events: [...prev.events, event],
-        duration: Date.now() - (prev.events[0]?.timestamp || Date.now()),
-      }))
-    } catch (error) {
-      console.error('[useTimeTravel] Failed to record event:', error)
-    }
-  }, [enabled, maxEvents, stopRecording, userId, currentRoom])
+    syncDebounceRef.current = setTimeout(() => {
+      syncDebounceRef.current = null
+      syncFromServer()
+    }, SERVER_SYNC_DEBOUNCE_MS)
+  }, [enabled, syncFromServer])
 
   /**
    * Play the recorded session
@@ -272,6 +318,9 @@ export function useTimeTravel(options: UseTimeTravelOptions = {}) {
     initialize()
 
     return () => {
+      if (syncDebounceRef.current) {
+        clearTimeout(syncDebounceRef.current)
+      }
       if (engineRef.current) {
         engineRef.current.dispose()
       }
@@ -281,11 +330,27 @@ export function useTimeTravel(options: UseTimeTravelOptions = {}) {
     }
   }, [enabled, initialize])
 
+  // Poll the server's event log while recording is active, so mutations
+  // made by other clients — not just this one — reach the timeline. Local
+  // mutations already get a near-immediate refresh via recordEvent's own
+  // debounce; this is what makes the timeline cross-client, not just
+  // cross-reload.
+  useEffect(() => {
+    if (!enabled || !state.isRecording) return
+
+    const interval = setInterval(() => {
+      syncFromServer()
+    }, SERVER_SYNC_POLL_MS)
+
+    return () => clearInterval(interval)
+  }, [enabled, state.isRecording, syncFromServer])
+
   return {
     state,
     isRecording: state.isRecording,
     isReplaying: state.isReplaying,
     recordEvent,
+    syncFromServer,
     startRecording,
     stopRecording,
     play,
