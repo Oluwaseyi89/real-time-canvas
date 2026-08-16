@@ -20,6 +20,7 @@ import { useOfflineSync } from '@/hooks/useOfflineSync'
 import { useTimeTravel } from '@/hooks/useTimeTravel'
 import { useCanvasStore } from '@/store/canvasStore'
 import { createWebSocketHandlers, type CanvasEventHandlerContext } from '@/lib/websocket/handlers'
+import apiClient from '@/lib/api/client'
 import { ExportModal } from '@/components/export/ExportModal'
 import { ZoomControls } from '@/components/canvas/ZoomControls'
 import { Toolbar } from '@/components/canvas/tools/Toolbar'
@@ -110,13 +111,10 @@ export default function CanvasRoomPage() {
     if (!offlineReady) return
 
     try {
-      const events = await fetchMissedEvents()
-      if (events.length === 0) return
-
       // Canvas isn't mounted yet (e.g. this fired right after connect, before
       // useCanvas's init effect ran) — bail out WITHOUT acknowledging, so
-      // these events stay "missed" and the next successful catch-up retries
-      // them instead of losing them silently.
+      // this retries on the next successful catch-up instead of losing
+      // anything silently.
       const canvas = useCanvasStore.getState().canvas
       if (!canvas) return
 
@@ -129,10 +127,42 @@ export default function CanvasRoomPage() {
         },
         updateObject: (id, props) => useCanvasStore.getState().updateObject(id, props),
       }
-      // `client` goes unused by handleObjectCreate/Update/Delete — WebSocketHandlers
-      // only stores it for methods this replay path doesn't call — so a real
-      // WebSocketClient isn't needed here.
+      // `client` goes unused by handleObjectCreate/Update/Delete/CanvasSync —
+      // WebSocketHandlers only stores it for methods this replay path
+      // doesn't call — so a real WebSocketClient isn't needed here.
       const replayHandlers = createWebSocketHandlers(context, null as any)
+
+      // Full-state hydration from the room's current object list. This is
+      // NOT redundant with the missed-events replay below: this client's
+      // "last acknowledged" sync version is persisted in IndexedDB, keyed
+      // by roomId, so it survives a page refresh — but the in-memory Fabric
+      // canvas does NOT survive a refresh; it's rebuilt empty. A client that
+      // already caught up before refreshing would ask for events "since"
+      // its old version, get zero back, and the canvas would stay blank
+      // forever even though every object is safely in Postgres. Fetching
+      // the room's actual current objects and replaying them via
+      // handleCanvasSync (which skips anything already on the canvas) fixes
+      // that regardless of what this client's acknowledged version says —
+      // and is cheap/safe to redo on every reconnect, not just the first.
+      try {
+        const { data } = await apiClient.getObjects(roomId)
+        const objects = (data || []) as Array<{ id: string; type: string; data: Record<string, unknown> }>
+        if (objects.length > 0) {
+          replayHandlers.handleCanvasSync({
+            id: 'hydration',
+            type: 'canvas:sync',
+            roomId,
+            userId: '',
+            timestamp: Date.now(),
+            payload: { objects, version: 0, timestamp: Date.now() },
+          } as any)
+        }
+      } catch (error) {
+        console.error('[CanvasRoom] Failed to hydrate canvas from server:', error)
+      }
+
+      const events = await fetchMissedEvents()
+      if (events.length === 0) return
 
       for (const event of events) {
         const message = {
@@ -166,7 +196,7 @@ export default function CanvasRoomPage() {
     } catch (error) {
       console.error('[CanvasRoom] Failed to apply missed sync events:', error)
     }
-  }, [offlineReady, fetchMissedEvents, acknowledgeSyncVersion])
+  }, [offlineReady, fetchMissedEvents, acknowledgeSyncVersion, roomId])
 
   // Time travel setup
   const { recordEvent, isRecording, isReplaying } = useTimeTravel({
