@@ -2,7 +2,7 @@
  * PNG export functionality for canvas
  */
 
-import { Canvas, Object as FabricObject } from 'fabric'
+import { Canvas } from 'fabric'
 import type { PNGExportOptions } from '@/types/export'
 
 export class PNGExporter {
@@ -23,69 +23,41 @@ export class PNGExporter {
       includeObjects = true,
     } = options
 
-    // Get canvas dimensions
-    const originalWidth = this.canvas.getWidth()
-    const originalHeight = this.canvas.getHeight()
+    // Swapped only for the duration of this call, always restored below.
+    // Safe to mutate on the live canvas: toDataURL/toCanvasElement render
+    // to a detached offscreen canvas element, never to this canvas's own
+    // visible context, so the live view never flashes the export's
+    // background color.
+    const previousBackground = this.canvas.backgroundColor
+    this.canvas.backgroundColor = backgroundColor
 
-    // Calculate scaled dimensions
-    const width = originalWidth * scale
-    const height = originalHeight * scale
-
-    // Create a temporary canvas for export
-    const tempCanvas = document.createElement('canvas')
-    tempCanvas.width = width
-    tempCanvas.height = height
-    const tempContext = tempCanvas.getContext('2d')!
-
-    // Fill background
-    tempContext.fillStyle = backgroundColor
-    tempContext.fillRect(0, 0, width, height)
-
-    if (includeObjects) {
-      // Get all objects
-      const objects = this.canvas.getObjects()
-
-      // Create a temporary Fabric canvas for rendering
-      const tempFabricCanvas = new Canvas(tempCanvas)
-
-      // Set dimensions
-      tempFabricCanvas.setWidth(width)
-      tempFabricCanvas.setHeight(height)
-
-      // Add objects with scaling asynchronously (Fabric v6 clone returns a Promise)
-      for (const obj of objects) {
-        const clone = await obj.clone()
-        if (clone) {
-          // Apply scaling properties safely
-          clone.scaleX = (clone.scaleX || 1) * scale
-          clone.scaleY = (clone.scaleY || 1) * scale
-          clone.left = (clone.left || 0) * scale
-          clone.top = (clone.top || 0) * scale
-          clone.width = (clone.width || 0) * scale
-          clone.height = (clone.height || 0) * scale
-          
-          tempFabricCanvas.add(clone)
-        }
-      }
-
-      // Render to temp canvas
-      tempFabricCanvas.requestRenderAll()
+    let dataUrl: string
+    try {
+      // Fabric's own toDataURL/toCanvasElement composes the requested
+      // `multiplier` with the canvas's CURRENT viewportTransform (pan +
+      // zoom) before rendering — internally: newZoom = zoom * multiplier,
+      // with the pan offset scaled the same way. The previous implementation
+      // instead cloned every object and scaled only each clone's raw
+      // left/top/width/height by `scale`, in absolute object-space,
+      // completely ignoring pan/zoom — so a panned-away object rendered off
+      // the fixed-size output canvas (silently missing from the export) and
+      // a zoomed-out view exported as if it were sitting at 100%. Using
+      // Fabric's own renderer here instead of re-deriving that coordinate
+      // math is what makes the export actually match what's on screen.
+      dataUrl = this.canvas.toDataURL({
+        format: 'png',
+        quality,
+        multiplier: scale,
+        // Excludes every object from the render without touching their
+        // `visible` property (which would need its own save/restore pass).
+        filter: includeObjects ? undefined : () => false,
+      })
+    } finally {
+      this.canvas.backgroundColor = previousBackground
     }
 
-    // Convert to blob
-    return new Promise((resolve, reject) => {
-      tempCanvas.toBlob(
-        (blob) => {
-          if (blob) {
-            resolve(blob)
-          } else {
-            reject(new Error('Failed to generate PNG blob'))
-          }
-        },
-        'image/png',
-        quality
-      )
-    })
+    const response = await fetch(dataUrl)
+    return response.blob()
   }
 
   /**
