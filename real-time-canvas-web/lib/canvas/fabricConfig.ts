@@ -21,6 +21,15 @@ export const CANVAS_CONFIG = {
   skipOffscreen: true,
   // Infinite canvas default viewport transform matrix [a, b, c, d, e, f]
   viewportTransform: [1, 0, 0, 1, 0, 0] as TMat2D,
+  // Fabric silently drops middle/right-click mouse:down and mouse:up events
+  // unless these are explicitly enabled — without them, useCanvas.ts's own
+  // "drag with middle/right mouse button to pan" handler (which checks
+  // e.button === 1 || 2) never fires at all, so desktop mouse users had no
+  // way to pan despite the UI advertising "Drag canvas to pan". Touch pan/
+  // pinch and wheel-zoom were unaffected, since neither goes through this
+  // button-gated path.
+  fireMiddleClick: true,
+  fireRightClick: true,
 }
 
 /**
