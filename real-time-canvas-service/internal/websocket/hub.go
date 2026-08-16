@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"real-time-canvas/real-time-canvas-service/internal/services"
+	redisPkg "real-time-canvas/real-time-canvas-service/pkg/redis"
 )
 
 // Hub maintains the set of active clients and broadcasts messages
@@ -30,6 +31,11 @@ type Hub struct {
 	// already rendered instead of two uncoordinated views of the room.
 	CanvasService *services.CanvasService
 
+	// RedisService backs per-client message rate limiting (see
+	// Client.checkRateLimit). Optional, same as everywhere else it's used —
+	// a nil value means rate limiting is skipped rather than enforced.
+	RedisService *redisPkg.Service
+
 	mu sync.RWMutex
 }
 
@@ -40,7 +46,7 @@ type BroadcastMessage struct {
 }
 
 // NewHub creates a new WebSocket hub
-func NewHub(canvasService *services.CanvasService) *Hub {
+func NewHub(canvasService *services.CanvasService, redisService *redisPkg.Service) *Hub {
 	return &Hub{
 		Clients:       make(map[string]*Client),
 		Rooms:         make(map[string]map[string]*Client),
@@ -48,6 +54,7 @@ func NewHub(canvasService *services.CanvasService) *Hub {
 		Unregister:    make(chan *Client),
 		Broadcast:     make(chan *BroadcastMessage, 256),
 		CanvasService: canvasService,
+		RedisService:  redisService,
 	}
 }
 

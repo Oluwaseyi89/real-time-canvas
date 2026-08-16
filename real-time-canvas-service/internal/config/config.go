@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"strings"
 
 	"real-time-canvas/real-time-canvas-service/internal/storage"
 
@@ -33,6 +34,12 @@ type Config struct {
 
 	// JWT
 	JWTSecret string
+
+	// CORS — origins allowed to make credentialed cross-origin requests.
+	// Browsers reject "Access-Control-Allow-Origin: *" combined with
+	// "Access-Control-Allow-Credentials: true" for any credentialed request,
+	// so this must be a specific, known set of origins, not a wildcard.
+	AllowedOrigins []string
 
 	// Media storage — S3 (or an S3-compatible service) when S3Bucket is
 	// set, local disk otherwise. See NewStorage.
@@ -73,6 +80,8 @@ func Load() (*Config, error) {
 		RedisDB:       getEnvAsInt("REDIS_DB", 0),
 
 		JWTSecret: getEnv("JWT_SECRET", "your-secret-key"),
+
+		AllowedOrigins: getEnvAsSlice("ALLOWED_ORIGINS", "http://localhost:3000"),
 
 		S3Bucket:           getEnv("S3_BUCKET", ""),
 		S3Region:           getEnv("S3_REGION", "us-east-1"),
@@ -170,6 +179,21 @@ func parseInt(s string) (int, error) {
 	var result int
 	_, err := fmt.Sscanf(s, "%d", &result)
 	return result, err
+}
+
+// getEnvAsSlice parses a comma-separated env var into a trimmed, non-empty
+// string slice.
+func getEnvAsSlice(key, defaultValue string) []string {
+	value := getEnv(key, defaultValue)
+	parts := strings.Split(value, ",")
+	result := make([]string, 0, len(parts))
+	for _, p := range parts {
+		p = strings.TrimSpace(p)
+		if p != "" {
+			result = append(result, p)
+		}
+	}
+	return result
 }
 
 func getEnvAsBool(key string, defaultValue bool) bool {

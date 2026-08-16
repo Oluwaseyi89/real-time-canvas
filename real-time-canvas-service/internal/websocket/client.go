@@ -122,9 +122,43 @@ func (c *Client) WritePump() {
 	}
 }
 
+// wsRateLimitMax and wsRateLimitWindow bound how fast a single client can
+// push messages through the hub. This is independent of the REST rate
+// limiter (internal/middleware.RateLimit) — a client flooding
+// object:update/cursor messages over one persistent WS connection never
+// touches the REST limiter at all, since it's a different transport.
+const (
+	wsRateLimitMax    = 100
+	wsRateLimitWindow = 10 * time.Second
+)
+
+// checkRateLimit reports whether this client is still under its message
+// budget for the current window. Redis being unavailable fails open (same
+// policy as the REST limiter) — dropping every live collaboration message
+// over a rate-limiter outage would be worse than temporarily not enforcing
+// the guard.
+func (c *Client) checkRateLimit() bool {
+	if c.Hub.RedisService == nil {
+		return true
+	}
+
+	count, err := c.Hub.RedisService.IncrementRateLimit("ws:"+c.UserID, wsRateLimitMax, wsRateLimitWindow)
+	if err != nil {
+		log.Printf("[WebSocket] rate limit check failed for %s, failing open: %v", c.UserID, err)
+		return true
+	}
+
+	return count <= wsRateLimitMax
+}
+
 // handleMessage processes incoming messages
 func (c *Client) handleMessage(msg *WebSocketMessage) {
 	msg.UserID = c.UserID
+
+	if !c.checkRateLimit() {
+		c.sendError("rate_limited", "Too many messages, please slow down")
+		return
+	}
 
 	switch msg.Type {
 	case MsgJoinRoom:

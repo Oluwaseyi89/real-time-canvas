@@ -13,7 +13,7 @@ import (
 // already-closed channel panics — on the hub's own goroutine, taking down
 // real-time collaboration for every room, not just the idle client.
 func TestConcurrentUnregisterDoesNotPanic(t *testing.T) {
-	hub := NewHub(nil)
+	hub := NewHub(nil, nil)
 	go hub.Run()
 
 	const clientCount = 50
