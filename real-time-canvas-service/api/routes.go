@@ -1,9 +1,12 @@
 package api
 
 import (
+	"time"
+
 	"real-time-canvas/real-time-canvas-service/internal/handlers"
 	"real-time-canvas/real-time-canvas-service/internal/middleware"
 	jwtpkg "real-time-canvas/real-time-canvas-service/pkg/jwt"
+	redisPkg "real-time-canvas/real-time-canvas-service/pkg/redis"
 
 	"github.com/gin-gonic/gin"
 )
@@ -17,12 +20,14 @@ func SetupRouter(
 	mediaHandler *handlers.MediaHandler,
 	wsHandler *handlers.WebSocketHandler,
 	jwtService *jwtpkg.Service,
+	redisService *redisPkg.Service,
 	localUploadDir string,
+	allowedOrigins []string,
 ) *gin.Engine {
 	router := gin.Default()
 
 	// CORS middleware
-	router.Use(middleware.CORS())
+	router.Use(middleware.CORS(allowedOrigins))
 
 	// Serves files saved by storage.LocalStorage (the fallback backend used
 	// when S3 isn't configured — see config.NewStorage). Harmless to
@@ -43,8 +48,11 @@ func SetupRouter(
 	// API v1 routes
 	v1 := router.Group("/api/v1")
 	{
-		// Auth routes (no auth required)
+		// Auth routes (no auth required). Keyed by IP since there's no user
+		// identity yet — this is what actually guards against credential
+		// stuffing / brute-force login and registration spam.
 		auth := v1.Group("/auth")
+		auth.Use(middleware.RateLimit(redisService, 20, time.Minute, middleware.RateLimitByIP("auth")))
 		{
 			auth.POST("/register", authHandler.Register)
 			auth.POST("/login", authHandler.Login)
@@ -54,6 +62,10 @@ func SetupRouter(
 		// Protected routes
 		protected := v1.Group("/")
 		protected.Use(middleware.AuthMiddleware(jwtService))
+		// Keyed by user ID (set above by AuthMiddleware) rather than IP, so
+		// one heavy user can't exhaust a shared-IP limit for everyone else
+		// behind the same NAT/proxy.
+		protected.Use(middleware.RateLimit(redisService, 300, time.Minute, middleware.RateLimitByUser("api")))
 		{
 			// User profile
 			protected.GET("/auth/profile", authHandler.GetProfile)

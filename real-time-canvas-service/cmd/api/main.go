@@ -66,7 +66,6 @@ func main() {
 			log.Println("Redis service initialized")
 		}
 	}
-	_ = redisService // Will be used for session management
 
 	// Initialize media storage — S3 if configured, local disk otherwise
 	mediaStorage, storageLabel, err := cfg.NewStorage(context.Background())
@@ -96,7 +95,7 @@ func main() {
 	mediaHandler := handlers.NewMediaHandler(mediaService)
 
 	// Initialize WebSocket hub
-	hub := websocket.NewHub(canvasService)
+	hub := websocket.NewHub(canvasService, redisService)
 	wsHandler := handlers.NewWebSocketHandler(hub, roomService, jwtService)
 
 	// Start WebSocket hub in a goroutine
@@ -104,7 +103,7 @@ func main() {
 	log.Println("WebSocket hub started")
 
 	// Setup router
-	router := api.SetupRouter(authHandler, roomHandler, canvasHandler, syncHandler, mediaHandler, wsHandler, jwtService, cfg.LocalUploadDir)
+	router := api.SetupRouter(authHandler, roomHandler, canvasHandler, syncHandler, mediaHandler, wsHandler, jwtService, redisService, cfg.LocalUploadDir, cfg.AllowedOrigins)
 
 	// Start server
 	port := os.Getenv("PORT")
