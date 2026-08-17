@@ -85,7 +85,7 @@ export default function CanvasPage() {
 
   if (!authChecked || !isAuthenticated) {
     return (
-      <div className="relative flex items-center justify-center min-h-screen w-screen bg-slate-950 text-slate-100">
+      <div className="relative flex items-center justify-center min-h-screen w-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
         <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] opacity-40 pointer-events-none z-0" />
         <LoadingSpinner size="md" color="indigo" className="relative z-10" />
       </div>
@@ -93,22 +93,22 @@ export default function CanvasPage() {
   }
 
   return (
-    <div className="relative min-h-screen w-screen bg-slate-950 text-slate-100 font-sans select-none overflow-x-hidden flex flex-col">
+    <div className="relative min-h-screen w-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans select-none overflow-x-hidden flex flex-col">
       {/* Dynamic Ambient Grid Background */}
       <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] opacity-40 pointer-events-none z-0" />
 
       {/* TOP GLASS NAVIGATION HEADER */}
-      <header className="relative z-10 w-full border-b border-slate-800/80 bg-slate-950/80 backdrop-blur-2xl px-4 sm:px-6 py-4 flex items-center justify-between">
+      <header className="relative z-10 w-full border-b border-slate-200/80 dark:border-slate-800/80 bg-slate-50/80 dark:bg-slate-950/80 backdrop-blur-2xl px-4 sm:px-6 py-4 flex items-center justify-between">
         {/* Brand Logo */}
         <div className="flex items-center gap-3">
           <div className="w-10 h-10 rounded-2xl bg-indigo-950/80 border border-indigo-500/50 flex items-center justify-center text-xl shadow-lg shadow-indigo-950/50">
             ✨
           </div>
           <div>
-            <h1 className="text-base font-bold tracking-wide text-slate-100">
+            <h1 className="text-base font-bold tracking-wide text-slate-900 dark:text-slate-100">
               Infinite Canvas
             </h1>
-            <p className="text-[11px] font-mono text-slate-400">
+            <p className="text-[11px] font-mono text-slate-600 dark:text-slate-400">
               Spatial Collaboration Engine
             </p>
           </div>
@@ -116,7 +116,7 @@ export default function CanvasPage() {
 
         {/* User Identity Banner & Actions */}
         <div className="flex items-center gap-3">
-          <div className="hidden sm:flex items-center gap-2 bg-slate-900/80 border border-slate-800/80 px-3 py-1.5 rounded-xl font-mono text-xs text-slate-300">
+          <div className="hidden sm:flex items-center gap-2 bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800/80 px-3 py-1.5 rounded-xl font-mono text-xs text-slate-700 dark:text-slate-300">
             <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
             <span>{username || 'Guest Collaborator'}</span>
             {guestMode && (
@@ -128,7 +128,7 @@ export default function CanvasPage() {
 
           <button
             onClick={logout}
-            className="p-2 rounded-xl text-xs font-mono text-slate-400 hover:text-rose-300 hover:bg-slate-900 border border-transparent hover:border-slate-800 transition-colors cursor-pointer"
+            className="p-2 rounded-xl text-xs font-mono text-slate-600 dark:text-slate-400 hover:text-rose-300 hover:bg-slate-100 dark:hover:bg-slate-900 border border-transparent hover:border-slate-200 dark:hover:border-slate-800 transition-colors cursor-pointer"
             title="Switch Session Identity"
           >
             Exit
@@ -139,16 +139,16 @@ export default function CanvasPage() {
       {/* MAIN CONTAINER */}
       <main className="relative z-10 flex-1 max-w-6xl w-full mx-auto p-6 md:p-10 flex flex-col gap-8">
         {/* Hero Section Banner */}
-        <div className="relative rounded-3xl bg-gradient-to-r from-indigo-950/60 via-slate-900/80 to-slate-950 border border-indigo-500/30 p-5 sm:p-8 shadow-2xl backdrop-blur-xl overflow-hidden">
+        <div className="relative rounded-3xl bg-gradient-to-r from-indigo-950/60 via-slate-100/80 dark:via-slate-900/80 to-slate-50 dark:to-slate-950 border border-indigo-500/30 p-5 sm:p-8 shadow-2xl backdrop-blur-xl overflow-hidden">
           <div className="max-w-2xl space-y-3">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-indigo-500/10 border border-indigo-500/30 text-indigo-300 text-xs font-mono">
               <span>🚀</span>
               <span>Real-time Whiteboard & Physics Workspace</span>
             </div>
-            <h2 className="text-3xl font-extrabold tracking-tight text-slate-100 sm:text-4xl">
+            <h2 className="text-3xl font-extrabold tracking-tight text-slate-900 dark:text-slate-100 sm:text-4xl">
               Collaborate without boundaries
             </h2>
-            <p className="text-sm text-slate-400 leading-relaxed">
+            <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed">
               Create an infinite canvas room, invite your team, manipulate physics objects,
               and record time-travel replays in real-time.
             </p>
@@ -170,11 +170,11 @@ export default function CanvasPage() {
         {/* WORKSPACE & ROOM SELECTION GRID */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Active Rooms Column (2-Span) */}
-          <div className="lg:col-span-2 bg-slate-950/80 border border-slate-800/80 rounded-3xl p-6 shadow-2xl backdrop-blur-xl space-y-4">
-            <div className="flex items-center justify-between pb-3 border-b border-slate-800/80">
+          <div className="lg:col-span-2 bg-slate-50/80 dark:bg-slate-950/80 border border-slate-200/80 dark:border-slate-800/80 rounded-3xl p-6 shadow-2xl backdrop-blur-xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200/80 dark:border-slate-800/80">
               <div className="flex items-center gap-2">
                 <span className="text-lg">🎨</span>
-                <h3 className="text-sm font-semibold text-slate-100 uppercase tracking-wider font-mono">
+                <h3 className="text-sm font-semibold text-slate-900 dark:text-slate-100 uppercase tracking-wider font-mono">
                   Your Active Rooms
                 </h3>
               </div>
@@ -194,12 +194,12 @@ export default function CanvasPage() {
           {/* Quick Access / Feature Highlights Column */}
           <div className="space-y-4">
             {/* Direct Join Action Card */}
-            <div className="bg-slate-950/80 border border-slate-800/80 rounded-3xl p-6 shadow-2xl backdrop-blur-xl space-y-3">
+            <div className="bg-slate-50/80 dark:bg-slate-950/80 border border-slate-200/80 dark:border-slate-800/80 rounded-3xl p-6 shadow-2xl backdrop-blur-xl space-y-3">
               <span className="text-2xl block">🔑</span>
-              <h4 className="text-xs font-semibold text-slate-100 font-mono uppercase tracking-wider">
+              <h4 className="text-xs font-semibold text-slate-900 dark:text-slate-100 font-mono uppercase tracking-wider">
                 Have an Invite Link?
               </h4>
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-slate-600 dark:text-slate-400">
                 Paste room URLs or join codes directly to enter collaborative sessions in real-time.
               </p>
               <Button variant="secondary" fullWidth onClick={() => setIsJoinDialogOpen(true)}>
@@ -209,21 +209,21 @@ export default function CanvasPage() {
             </div>
 
             {/* System Status Telemetry Card */}
-            <div className="bg-slate-950/80 border border-slate-800/80 rounded-3xl p-6 shadow-2xl backdrop-blur-xl space-y-2.5 text-xs font-mono">
-              <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
-                <span className="text-slate-400">WebSocket Gateway</span>
+            <div className="bg-slate-50/80 dark:bg-slate-950/80 border border-slate-200/80 dark:border-slate-800/80 rounded-3xl p-6 shadow-2xl backdrop-blur-xl space-y-2.5 text-xs font-mono">
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200/80 dark:border-slate-800/80">
+                <span className="text-slate-600 dark:text-slate-400">WebSocket Gateway</span>
                 <span className="text-emerald-400 flex items-center gap-1">
                   <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                   Operational
                 </span>
               </div>
-              <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
-                <span className="text-slate-400">Physics Engine</span>
+              <div className="flex items-center justify-between pb-2 border-b border-slate-200/80 dark:border-slate-800/80">
+                <span className="text-slate-600 dark:text-slate-400">Physics Engine</span>
                 <span className="text-indigo-400">Matter.js Ready</span>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-slate-400">Offline Sync</span>
-                <span className="text-slate-300">Queue Active</span>
+                <span className="text-slate-600 dark:text-slate-400">Offline Sync</span>
+                <span className="text-slate-700 dark:text-slate-300">Queue Active</span>
               </div>
             </div>
           </div>

@@ -31,7 +31,7 @@ export function TypingIndicator({ className = '' }: TypingIndicatorProps) {
 
   return (
     <div
-      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/80 border border-slate-800 backdrop-blur-md text-xs text-slate-300 shadow-md select-none transition-all duration-200 ${className}`}
+      className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 backdrop-blur-md text-xs text-slate-700 dark:text-slate-300 shadow-md select-none transition-all duration-200 ${className}`}
     >
       {/* Animated Typing Wave Dots */}
       <span className="flex items-center gap-0.5 h-3">

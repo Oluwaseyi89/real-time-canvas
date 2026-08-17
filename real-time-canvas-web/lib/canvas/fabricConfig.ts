@@ -6,6 +6,35 @@
 import { Canvas, Object as FabricObject, TMat2D } from 'fabric'
 
 /**
+ * Fabric paints its own backgroundColor directly onto the canvas bitmap —
+ * unlike the surrounding page chrome, it's not a CSS value, so it doesn't
+ * pick up the `dark:` variant or re-paint itself when the user toggles
+ * light/dark. These match the light/dark --color-canvas-bg tokens in
+ * globals.css so the canvas fill and the page around it stay in sync.
+ */
+export const CANVAS_BACKGROUND = {
+  light: '#eef1f6',
+  dark: '#0b0f19',
+} as const
+
+export function getThemeAwareCanvasBackground(): string {
+  if (typeof document === 'undefined') return CANVAS_BACKGROUND.dark
+  return document.documentElement.getAttribute('data-theme') === 'dark'
+    ? CANVAS_BACKGROUND.dark
+    : CANVAS_BACKGROUND.light
+}
+
+/**
+ * Applies the given theme's background to a live canvas and repaints —
+ * called by the room page when the user toggles light/dark, since Fabric
+ * won't pick that change up on its own (see CANVAS_BACKGROUND above).
+ */
+export function updateCanvasBackgroundForTheme(canvas: Canvas, theme: 'light' | 'dark'): void {
+  canvas.backgroundColor = CANVAS_BACKGROUND[theme]
+  canvas.renderAll()
+}
+
+/**
  * Default canvas configuration options
  * Optimized for infinite canvas with smooth interactions
  */
@@ -119,6 +148,7 @@ export function initializeCanvas(
 
   const config = {
     ...CANVAS_CONFIG,
+    backgroundColor: getThemeAwareCanvasBackground(),
     ...options,
     width: parentWidth,
     height: parentHeight,

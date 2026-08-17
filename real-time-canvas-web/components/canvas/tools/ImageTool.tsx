@@ -111,7 +111,7 @@ export function ImageTool({ roomId, onAddImage }: ImageToolProps) {
   return (
     <div className="flex flex-col gap-3 p-1 min-w-[300px]">
       {/* Mode Selector Tabs */}
-      <div className="flex bg-slate-900/80 p-1 rounded-xl border border-slate-700/80 text-xs font-medium text-slate-400">
+      <div className="flex bg-slate-100/80 dark:bg-slate-900/80 p-1 rounded-xl border border-slate-300/80 dark:border-slate-700/80 text-xs font-medium text-slate-600 dark:text-slate-400">
         <button
           type="button"
           onClick={() => {
@@ -119,7 +119,7 @@ export function ImageTool({ roomId, onAddImage }: ImageToolProps) {
             setError(null)
           }}
           className={`flex-1 py-1 text-center rounded-lg transition-all ${
-            tab === 'file' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' : 'hover:text-slate-200'
+            tab === 'file' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' : 'hover:text-slate-800 dark:hover:text-slate-200'
           }`}
         >
           Upload File
@@ -131,7 +131,7 @@ export function ImageTool({ roomId, onAddImage }: ImageToolProps) {
             setError(null)
           }}
           className={`flex-1 py-1 text-center rounded-lg transition-all ${
-            tab === 'url' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' : 'hover:text-slate-200'
+            tab === 'url' ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30' : 'hover:text-slate-800 dark:hover:text-slate-200'
           }`}
         >
           Image URL
@@ -148,7 +148,7 @@ export function ImageTool({ roomId, onAddImage }: ImageToolProps) {
           className={`flex flex-col items-center justify-center p-4 border-2 border-dashed rounded-xl cursor-pointer transition-colors ${
             isDragging
               ? 'border-indigo-500 bg-indigo-950/30'
-              : 'border-slate-700/80 hover:border-slate-600 bg-slate-900/40'
+              : 'border-slate-300/80 dark:border-slate-700/80 hover:border-slate-400 dark:hover:border-slate-600 bg-slate-100/40 dark:bg-slate-900/40'
           }`}
         >
           <input
@@ -160,7 +160,7 @@ export function ImageTool({ roomId, onAddImage }: ImageToolProps) {
             disabled={isLoading}
           />
           <svg
-            className="w-8 h-8 mb-1 text-slate-500"
+            className="w-8 h-8 mb-1 text-slate-500 dark:text-slate-500"
             fill="none"
             stroke="currentColor"
             viewBox="0 0 24 24"
@@ -172,10 +172,10 @@ export function ImageTool({ roomId, onAddImage }: ImageToolProps) {
               d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
             />
           </svg>
-          <p className="text-xs font-medium text-slate-300">
+          <p className="text-xs font-medium text-slate-700 dark:text-slate-300">
             {isLoading ? 'Processing image...' : 'Click or drop image here'}
           </p>
-          <p className="text-[10px] text-slate-500 mt-0.5">PNG, JPG, SVG or GIF</p>
+          <p className="text-[10px] text-slate-500 dark:text-slate-500 mt-0.5">PNG, JPG, SVG or GIF</p>
         </div>
       ) : (
         /* URL Input Field */
@@ -186,7 +186,7 @@ export function ImageTool({ roomId, onAddImage }: ImageToolProps) {
               value={imageUrl}
               onChange={(e) => setImageUrl(e.target.value)}
               placeholder="https://example.com/image.png"
-              className="flex-1 px-2.5 py-1.5 bg-slate-900/80 border border-slate-700/80 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
+              className="flex-1 px-2.5 py-1.5 bg-slate-100/80 dark:bg-slate-900/80 border border-slate-300/80 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all"
               onKeyDown={(e) => e.key === 'Enter' && handleUrlSubmit()}
               disabled={isLoading}
             />

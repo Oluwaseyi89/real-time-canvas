@@ -16,9 +16,11 @@ import { useAuth } from '@/hooks/useAuth'
 import { useCollaboration } from '@/hooks/useCollaboration'
 import { usePhysics } from '@/hooks/usePhysics'
 import { useMinimap } from '@/hooks/useMinimap'
+import { useMinimapStore } from '@/store/minimapStore'
 import { useOfflineSync } from '@/hooks/useOfflineSync'
 import { useTimeTravel } from '@/hooks/useTimeTravel'
 import { useCanvasStore } from '@/store/canvasStore'
+import { useCollaborationStore } from '@/store/collaborationStore'
 import { createWebSocketHandlers, type CanvasEventHandlerContext } from '@/lib/websocket/handlers'
 import apiClient from '@/lib/api/client'
 import { ExportModal } from '@/components/export/ExportModal'
@@ -27,6 +29,11 @@ import { Toolbar } from '@/components/canvas/tools/Toolbar'
 import { PhysicsControls } from '@/components/canvas/physics/PhysicsControls'
 import { TimeTravelControls } from '@/components/canvas/TimeTravelControls'
 import { Minimap } from '@/components/canvas/minimap/Minimap'
+import { Dock } from '@/components/canvas/dock/Dock'
+import { DockFlyout } from '@/components/canvas/dock/DockFlyout'
+import type { DockPanelId } from '@/components/canvas/dock/types'
+import { updateCanvasBackgroundForTheme } from '@/lib/canvas/fabricConfig'
+import { useTheme } from '@/lib/theme/ThemeProvider'
 import { CursorTracker } from '@/components/collaboration/CursorTracker'
 import { UserPresence } from '@/components/collaboration/UserPresence'
 import { TypingIndicator } from '@/components/collaboration/TypingIndicator'
@@ -57,10 +64,30 @@ export default function CanvasRoomPage() {
 
   // Control State
   const [isReady, setIsReady] = useState(false)
-  const [isRoomInfoOpen, setIsRoomInfoOpen] = useState(false)
-  const [isPhysicsOpen, setIsPhysicsOpen] = useState(false)
-  const [isDiagnosticsOpen, setIsDiagnosticsOpen] = useState(false)
+  // Every feature panel (tools, radar, zoom, time travel, physics,
+  // presence, room info, invite, diagnostics) is docked/collapsed by
+  // default and only floats open when the user picks its icon in the
+  // Dock — at most one at a time, so a single id is enough state.
+  const [activeDockPanel, setActiveDockPanel] = useState<DockPanelId | null>(null)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
+
+  const closeDockPanel = useCallback(() => setActiveDockPanel(null), [])
+  const toggleDockPanel = useCallback((id: DockPanelId) => {
+    setActiveDockPanel((prev) => (prev === id ? null : id))
+  }, [])
+
+  // Minimap's own render loop (useMinimap, called both here and inside
+  // <Minimap/>) gates on this store flag — keep it in sync with whether
+  // the Radar dock panel is actually mounted, so it does no rendering work
+  // while docked/closed. A plain useEffect (rather than setting this from
+  // inside the setActiveDockPanel updater above) keeps that updater pure —
+  // React re-invokes updater functions outside of committing an update
+  // (e.g. Strict Mode's double-invoke check), and a store write inside one
+  // triggered "Cannot update a component while rendering a different
+  // component" and left the dock panel state visibly inconsistent.
+  useEffect(() => {
+    useMinimapStore.getState().setVisible(activeDockPanel === 'radar')
+  }, [activeDockPanel])
 
   const canvasElementRef = useRef<HTMLCanvasElement | null>(null)
   const lastCursorPos = useRef<{ x: number; y: number } | null>(null)
@@ -485,6 +512,16 @@ export default function CanvasRoomPage() {
   const canvas = useCanvasStore((state) => state.canvas)
   const physicsEnabled = useCanvasStore((state) => state.physicsEnabled)
   const physicsGravity = useCanvasStore((state) => state.physicsGravity)
+  const userCount = useCollaborationStore((state) => state.userCount)
+  const { theme } = useTheme()
+
+  // Fabric paints its own background directly onto the canvas bitmap, so it
+  // doesn't pick up the page's `dark:` CSS variant on its own — repaint it
+  // manually whenever the user toggles light/dark.
+  useEffect(() => {
+    if (!canvas) return
+    updateCanvasBackgroundForTheme(canvas, theme)
+  }, [canvas, theme])
 
   // Fetch-missed-events catch-up. Deliberately NOT done from useWebSocket's
   // onConnect callback: that fires the instant the socket opens, which can
@@ -840,23 +877,23 @@ export default function CanvasRoomPage() {
   // Loading State
   if (!isReady) {
     return (
-      <div className="flex flex-col items-center justify-center h-screen w-screen bg-slate-950 text-slate-100 select-none">
+      <div className="flex flex-col items-center justify-center h-screen w-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 select-none">
         <div className="relative flex items-center justify-center mb-6">
           <div className="w-16 h-16 rounded-full border-2 border-indigo-500/20 border-t-indigo-500 animate-spin" />
           <span className="absolute text-xl animate-pulse">✨</span>
         </div>
-        <h2 className="text-sm font-semibold tracking-widest text-slate-300 uppercase font-mono">
+        <h2 className="text-sm font-semibold tracking-widest text-slate-700 dark:text-slate-300 uppercase font-mono">
           Connecting to Workspace
         </h2>
-        <p className="text-xs text-slate-500 mt-2 font-mono">Initializing canvas, physics engine & sync relay...</p>
+        <p className="text-xs text-slate-500 dark:text-slate-500 mt-2 font-mono">Initializing canvas, physics engine & sync relay...</p>
       </div>
     )
   }
 
   return (
-    <div className="relative w-screen h-screen overflow-hidden bg-slate-950 font-sans select-none">
+    <div className="relative w-screen h-screen overflow-hidden bg-slate-50 dark:bg-slate-950 font-sans select-none">
       {/* Dynamic Background Mesh Grid */}
-      <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] opacity-40 pointer-events-none z-0" />
+      <div className="canvas-dot-grid absolute inset-0 opacity-60 pointer-events-none z-0" />
 
       {/* Main Canvas Workspace Container */}
       <div
@@ -878,186 +915,103 @@ export default function CanvasRoomPage() {
       {/* Real-time Remote Cursor Layer */}
       <CursorTracker canvasRef={canvasElementRef} />
 
-      {/* TOP FLOATING UTILITY HEADER */}
-      <div className="absolute top-4 inset-x-4 z-20 grid grid-cols-[1fr_auto_1fr] items-center gap-2 pointer-events-none">
-        {/* Left spacer — keeps the center badge mathematically centered regardless of right-side width */}
-        <div />
-
-        {/* Center Section: Collaborator Presence Badge */}
-        <div className="pointer-events-auto justify-self-center hidden md:flex items-center gap-2 bg-slate-950/80 backdrop-blur-2xl border border-slate-800/80 px-3.5 py-1.5 rounded-2xl shadow-2xl">
-          <UserPresence />
-        </div>
-
-        {/* Right Section: Room Actions & Controls */}
-        <div className="pointer-events-auto justify-self-end flex items-center gap-2 flex-wrap justify-end">
-          {/* Diagnostics HUD Toggle */}
-          <button
-            onClick={() => setIsDiagnosticsOpen(!isDiagnosticsOpen)}
-            className={`px-3 py-2 rounded-xl text-xs font-mono font-medium border backdrop-blur-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-lg ${
-              isDiagnosticsOpen
-                ? 'bg-indigo-950/80 text-indigo-300 border-indigo-500/60'
-                : 'bg-slate-950/80 text-slate-300 border-slate-800/80 hover:border-slate-700 hover:bg-slate-900'
-            }`}
-            title="Toggle Live Telemetry & Status"
-          >
-            <span className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-400 animate-pulse' : 'bg-rose-500'}`} />
-            <span className="hidden sm:inline">Telemetry</span>
-          </button>
-
-          {/* Physics Drawer Toggle */}
-          <button
-            onClick={() => setIsPhysicsOpen(!isPhysicsOpen)}
-            className={`px-3 py-2 rounded-xl text-xs font-medium border backdrop-blur-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-lg ${
-              isPhysicsOpen
-                ? 'bg-amber-950/80 text-amber-300 border-amber-500/60'
-                : 'bg-slate-950/80 text-slate-300 border-slate-800/80 hover:border-slate-700 hover:bg-slate-900'
-            }`}
-            title="Configure Canvas Physics Engine"
-          >
-            <span>⚡</span>
-            <span className="hidden sm:inline">Physics</span>
-          </button>
-
-          {/* Export Canvas Action */}
-          <button
-            onClick={() => setIsExportModalOpen(true)}
-            className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-xl text-xs font-medium border border-indigo-500/50 shadow-lg shadow-indigo-950/50 transition-all cursor-pointer flex items-center gap-1.5"
-            title="Export Canvas Image/Vector"
-          >
-            <span>📤</span>
-            <span className="hidden sm:inline">Export</span>
-          </button>
-
-          {/* Room Details Overlay Toggle */}
-          <button
-            onClick={() => setIsRoomInfoOpen(!isRoomInfoOpen)}
-            className={`px-3 py-2 rounded-xl text-xs font-medium border backdrop-blur-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-lg ${
-              isRoomInfoOpen
-                ? 'bg-slate-800 text-slate-100 border-slate-700'
-                : 'bg-slate-950/80 text-slate-300 border-slate-800/80 hover:border-slate-700 hover:bg-slate-900'
-            }`}
-          >
-            <span>📋</span>
-            <span className="hidden sm:inline">{isRoomInfoOpen ? 'Hide Info' : 'Room Info'}</span>
-          </button>
-        </div>
+      {/* Ephemeral typing notice — only ever appears while someone is
+          actually typing, so it doesn't count as persistent chrome. */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+        <TypingIndicator className="bg-slate-50/80 dark:bg-slate-950/80 backdrop-blur-xl text-slate-800 dark:text-slate-200 px-3 py-1.5 rounded-full shadow-2xl border border-slate-200/80 dark:border-slate-800/80 text-xs" />
       </div>
 
-      {/* EXPANDABLE DRAWERS & OVERLAYS */}
-      {/* Physics Engine Control Drawer */}
-      {isPhysicsOpen && (
-        <div className="absolute top-18 right-4 z-30 animate-slide-in-top">
-          <PhysicsControls />
-        </div>
-      )}
+      {/* FEATURE DOCK — every panel below (tools, radar, zoom, time travel,
+          physics, presence, room info, invite, diagnostics) is docked and
+          collapsed until its icon is clicked; at most one floats open at a
+          time, positioned in the flyout slot beside the dock. */}
+      <Dock
+        className="fixed left-4 top-1/2 -translate-y-1/2 z-40"
+        activePanel={activeDockPanel}
+        onTogglePanel={toggleDockPanel}
+        onOpenExport={() => setIsExportModalOpen(true)}
+        isConnected={isConnected}
+        physicsEnabled={physicsEnabled}
+        userCount={userCount}
+      />
 
-      {/* Room Details Info Drawer */}
-      {isRoomInfoOpen && (
-        <div className="absolute top-18 right-4 z-30 animate-slide-in-top">
-          <RoomInfo />
-        </div>
-      )}
+      <DockFlyout
+        isOpen={activeDockPanel !== null}
+        onClose={closeDockPanel}
+        anchorClassName="left-24 top-4"
+      >
+        {activeDockPanel === 'tools' && <Toolbar roomId={roomId} />}
 
-      {/* Live System Diagnostics / Telemetry Panel */}
-      {isDiagnosticsOpen && (
-        <div className="absolute top-18 right-4 sm:right-auto sm:left-4 z-30 w-72 bg-slate-950/90 border border-slate-800/90 rounded-2xl p-4 text-xs font-mono text-slate-300 shadow-2xl backdrop-blur-xl animate-slide-in-top space-y-2.5">
-          <div className="flex items-center justify-between pb-2 border-b border-slate-800/80">
-            <span className="font-semibold uppercase tracking-wider text-slate-100 text-[11px] flex items-center gap-1.5">
-              <span>📡</span> Telemetry & Status
-            </span>
-            <span className="text-[10px] text-slate-500">{roomId.slice(0, 10)}</span>
-          </div>
+        {activeDockPanel === 'radar' && <Minimap />}
 
-          <div className="space-y-1.5 text-[11px]">
-            <div className="flex justify-between items-center bg-slate-900/60 p-2 rounded-lg border border-slate-800/60">
-              <span className="text-slate-400">Connection</span>
-              <span className={isConnected ? 'text-emerald-400 font-semibold' : 'text-rose-400'}>
-                {isConnected ? '● WebSocket Active' : '○ Offline'}
+        {activeDockPanel === 'zoom' && (
+          <ZoomControls
+            zoom={zoom}
+            onZoomIn={zoomIn}
+            onZoomOut={zoomOut}
+            onReset={resetView}
+            onFitToView={fitToView}
+          />
+        )}
+
+        {activeDockPanel === 'timeTravel' && <TimeTravelControls onClose={closeDockPanel} />}
+
+        {activeDockPanel === 'physics' && <PhysicsControls />}
+
+        {activeDockPanel === 'presence' && <UserPresence />}
+
+        {activeDockPanel === 'roomInfo' && <RoomInfo />}
+
+        {activeDockPanel === 'invite' && <RoomInvite />}
+
+        {activeDockPanel === 'diagnostics' && (
+          <div className="w-72 bg-slate-50/90 dark:bg-slate-950/90 border border-slate-200/90 dark:border-slate-800/90 rounded-2xl p-4 text-xs font-mono text-slate-700 dark:text-slate-300 shadow-2xl backdrop-blur-xl space-y-2.5">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-200/80 dark:border-slate-800/80">
+              <span className="font-semibold uppercase tracking-wider text-slate-900 dark:text-slate-100 text-[11px] flex items-center gap-1.5">
+                <span>📡</span> Telemetry & Status
               </span>
+              <span className="text-[10px] text-slate-500 dark:text-slate-500">{roomId.slice(0, 10)}</span>
             </div>
 
-            <div className="flex justify-between items-center bg-slate-900/60 p-2 rounded-lg border border-slate-800/60">
-              <span className="text-slate-400">Canvas Engine</span>
-              <span className={isInitialized ? 'text-emerald-400' : 'text-amber-400'}>
-                {isInitialized ? '✓ Fabric Ready' : '⏳ Initializing'}
-              </span>
-            </div>
-
-            <div className="flex justify-between items-center bg-slate-900/60 p-2 rounded-lg border border-slate-800/60">
-              <span className="text-slate-400">Physics Simulation</span>
-              <span className={physicsEnabled && isPhysicsRunning ? 'text-amber-400' : 'text-slate-500'}>
-                {physicsEnabled && isPhysicsRunning ? '⚡ 60 FPS' : '⏸️ Paused'}
-              </span>
-            </div>
-
-            <div className="flex justify-between items-center bg-slate-900/60 p-2 rounded-lg border border-slate-800/60">
-              <span className="text-slate-400">Time-Travel Engine</span>
-              <span className={isRecording ? 'text-rose-400' : isReplaying ? 'text-indigo-400' : 'text-slate-500'}>
-                {isRecording ? '⏺️ Recording' : isReplaying ? '▶️ Replaying' : '⏹️ Idle'}
-              </span>
-            </div>
-
-            {offlineStatus.pendingCount > 0 && (
-              <div className="flex justify-between items-center bg-amber-950/30 border border-amber-800/40 p-2 rounded-lg text-amber-300">
-                <span>Sync Queue</span>
-                <span>📦 {offlineStatus.pendingCount} Pending</span>
+            <div className="space-y-1.5 text-[11px]">
+              <div className="flex justify-between items-center bg-slate-100/60 dark:bg-slate-900/60 p-2 rounded-lg border border-slate-200/60 dark:border-slate-800/60">
+                <span className="text-slate-600 dark:text-slate-400">Connection</span>
+                <span className={isConnected ? 'text-emerald-400 font-semibold' : 'text-rose-400'}>
+                  {isConnected ? '● WebSocket Active' : '○ Offline'}
+                </span>
               </div>
-            )}
+
+              <div className="flex justify-between items-center bg-slate-100/60 dark:bg-slate-900/60 p-2 rounded-lg border border-slate-200/60 dark:border-slate-800/60">
+                <span className="text-slate-600 dark:text-slate-400">Canvas Engine</span>
+                <span className={isInitialized ? 'text-emerald-400' : 'text-amber-400'}>
+                  {isInitialized ? '✓ Fabric Ready' : '⏳ Initializing'}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center bg-slate-100/60 dark:bg-slate-900/60 p-2 rounded-lg border border-slate-200/60 dark:border-slate-800/60">
+                <span className="text-slate-600 dark:text-slate-400">Physics Simulation</span>
+                <span className={physicsEnabled && isPhysicsRunning ? 'text-amber-400' : 'text-slate-500 dark:text-slate-500'}>
+                  {physicsEnabled && isPhysicsRunning ? '⚡ 60 FPS' : '⏸️ Paused'}
+                </span>
+              </div>
+
+              <div className="flex justify-between items-center bg-slate-100/60 dark:bg-slate-900/60 p-2 rounded-lg border border-slate-200/60 dark:border-slate-800/60">
+                <span className="text-slate-600 dark:text-slate-400">Time-Travel Engine</span>
+                <span className={isRecording ? 'text-rose-400' : isReplaying ? 'text-indigo-400' : 'text-slate-500 dark:text-slate-500'}>
+                  {isRecording ? '⏺️ Recording' : isReplaying ? '▶️ Replaying' : '⏹️ Idle'}
+                </span>
+              </div>
+
+              {offlineStatus.pendingCount > 0 && (
+                <div className="flex justify-between items-center bg-amber-950/30 border border-amber-800/40 p-2 rounded-lg text-amber-300">
+                  <span>Sync Queue</span>
+                  <span>📦 {offlineStatus.pendingCount} Pending</span>
+                </div>
+              )}
+            </div>
           </div>
-        </div>
-      )}
-
-      {/* BOTTOM CONTROL LAYER & HUD
-          Each cluster below is a single positioned flex container so its
-          contents auto-stack without overlap — Time Travel and Minimap both
-          toggle between a small collapsed button and a much taller panel, so
-          stacking with fixed pixel offsets (the previous approach) always
-          drifted out of sync and overlapped its neighbor. */}
-
-      {/* Bottom-Left Cluster: Room Invite (above) + Time Travel (anchored to the corner) */}
-      <div className="fixed bottom-4 left-4 z-20 flex flex-col items-start gap-3 max-w-[calc(100vw-2rem)]">
-        <div className="hidden lg:block">
-          <RoomInvite />
-        </div>
-        <TimeTravelControls />
-      </div>
-
-      {/* Bottom-Center: Primary Tool Dock */}
-      <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40">
-        <Toolbar roomId={roomId} />
-      </div>
-
-      {/* Bottom-Right Cluster: Minimap (above) + Zoom Controls (anchored to the corner) */}
-      <div className="fixed bottom-4 right-4 z-20 flex flex-col items-end gap-2">
-        <Minimap />
-        <ZoomControls
-          zoom={zoom}
-          onZoomIn={zoomIn}
-          onZoomOut={zoomOut}
-          onReset={resetView}
-          onFitToView={fitToView}
-        />
-      </div>
-
-      {/* Status Strip (Bottom-Center, above the Toolbar's max popover height so it never overlaps it) */}
-      <div className="absolute bottom-60 left-1/2 -translate-x-1/2 z-10 flex flex-col items-center gap-2 pointer-events-none">
-        <TypingIndicator className="bg-slate-950/80 backdrop-blur-xl text-slate-200 px-3 py-1.5 rounded-full shadow-2xl border border-slate-800/80 text-xs" />
-        <div className="hidden xl:flex items-center gap-3 bg-slate-950/60 backdrop-blur-md px-4 py-1.5 rounded-full border border-slate-800/60 text-[11px] font-mono text-slate-400 shadow-xl">
-          <span>🖱️ Scroll to zoom</span>
-          <span>•</span>
-          <span>Drag canvas to pan</span>
-          <span>•</span>
-          <span>{physicsEnabled ? '⚡ Physics enabled' : '⏸️ Physics off'}</span>
-          {physicsEnabled && (
-            <>
-              <span>•</span>
-              <span>Hold A/R to attract/repel selection</span>
-            </>
-          )}
-          <span>•</span>
-          <span>📦 Offline sync active</span>
-        </div>
-      </div>
+        )}
+      </DockFlyout>
 
       {/* Export Workspace Modal */}
       <ExportModal

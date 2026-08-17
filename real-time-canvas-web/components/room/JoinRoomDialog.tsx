@@ -173,7 +173,7 @@ export function JoinRoomDialog({
         <Input
           label={
             <>
-              Invite Code <span className="text-slate-600">(optional)</span>
+              Invite Code <span className="text-slate-400 dark:text-slate-600">(optional)</span>
             </>
           }
           value={inviteCode}

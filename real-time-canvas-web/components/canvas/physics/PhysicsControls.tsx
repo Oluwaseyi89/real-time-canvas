@@ -75,13 +75,13 @@ export function PhysicsControls({ className = '' }: PhysicsControlsProps) {
 
   return (
     <div
-      className={`w-72 bg-slate-950/90 border border-slate-800 rounded-2xl p-3.5 text-slate-200 shadow-2xl backdrop-blur-xl transition-all duration-200 select-none ${className}`}
+      className={`w-72 bg-slate-50/90 dark:bg-slate-950/90 border border-slate-200 dark:border-slate-800 rounded-2xl p-3.5 text-slate-800 dark:text-slate-200 shadow-2xl backdrop-blur-xl transition-all duration-200 select-none ${className}`}
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-800/80">
+      <div className="flex items-center justify-between mb-3 pb-2 border-b border-slate-200/80 dark:border-slate-800/80">
         <div className="flex items-center gap-2">
           <span className="text-amber-400 text-sm">⚡</span>
-          <h4 className="text-xs font-semibold tracking-wider text-slate-200 uppercase">
+          <h4 className="text-xs font-semibold tracking-wider text-slate-800 dark:text-slate-200 uppercase">
             Physics Engine
           </h4>
         </div>
@@ -90,7 +90,7 @@ export function PhysicsControls({ className = '' }: PhysicsControlsProps) {
           className={`px-2.5 py-1 text-[11px] font-semibold rounded-full border transition-all cursor-pointer ${
             physicsEnabled
               ? 'bg-emerald-950/60 text-emerald-300 border-emerald-800/60 hover:bg-emerald-900/60'
-              : 'bg-slate-900 text-slate-400 border-slate-800 hover:bg-slate-850'
+              : 'bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-200 dark:border-slate-800 hover:bg-slate-850'
           }`}
         >
           {physicsEnabled ? (isRunning ? '● Active' : 'Stopped') : 'Disabled'}
@@ -109,7 +109,7 @@ export function PhysicsControls({ className = '' }: PhysicsControlsProps) {
             </button>
             <button
               onClick={isRunning ? stop : start}
-              className="px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-medium rounded-lg border border-slate-700/60 transition-colors cursor-pointer"
+              className="px-3 py-1.5 bg-slate-200 dark:bg-slate-800 hover:bg-slate-300 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-200 font-medium rounded-lg border border-slate-300/60 dark:border-slate-700/60 transition-colors cursor-pointer"
             >
               {isRunning ? 'Stop' : 'Start'}
             </button>
@@ -117,25 +117,25 @@ export function PhysicsControls({ className = '' }: PhysicsControlsProps) {
 
           {/* Quick Presets */}
           <div className="space-y-1.5">
-            <span className="text-[10px] uppercase font-mono tracking-wider text-slate-400">
+            <span className="text-[10px] uppercase font-mono tracking-wider text-slate-600 dark:text-slate-400">
               Gravity Presets
             </span>
             <div className="grid grid-cols-3 gap-1.5">
               <button
                 onClick={() => applyPreset(0, 1)}
-                className="px-2 py-1 bg-slate-900 hover:bg-slate-800 rounded border border-slate-800 text-[10px] text-slate-300 transition-colors cursor-pointer"
+                className="px-2 py-1 bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 rounded border border-slate-200 dark:border-slate-800 text-[10px] text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
               >
                 Earth (1G)
               </button>
               <button
                 onClick={() => applyPreset(0, 0)}
-                className="px-2 py-1 bg-slate-900 hover:bg-slate-800 rounded border border-slate-800 text-[10px] text-slate-300 transition-colors cursor-pointer"
+                className="px-2 py-1 bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 rounded border border-slate-200 dark:border-slate-800 text-[10px] text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
               >
                 Zero-G
               </button>
               <button
                 onClick={() => applyPreset(0, -1)}
-                className="px-2 py-1 bg-slate-900 hover:bg-slate-800 rounded border border-slate-800 text-[10px] text-slate-300 transition-colors cursor-pointer"
+                className="px-2 py-1 bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 rounded border border-slate-200 dark:border-slate-800 text-[10px] text-slate-700 dark:text-slate-300 transition-colors cursor-pointer"
               >
                 Inverted
               </button>
@@ -143,9 +143,9 @@ export function PhysicsControls({ className = '' }: PhysicsControlsProps) {
           </div>
 
           {/* Gravity Vector Sliders */}
-          <div className="space-y-2.5 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80">
+          <div className="space-y-2.5 bg-slate-100/60 dark:bg-slate-900/60 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800/80">
             <div className="flex items-center gap-2">
-              <label className="text-slate-400 font-mono text-[11px] w-14">
+              <label className="text-slate-600 dark:text-slate-400 font-mono text-[11px] w-14">
                 Grav X:
               </label>
               <input
@@ -155,7 +155,7 @@ export function PhysicsControls({ className = '' }: PhysicsControlsProps) {
                 step="0.1"
                 value={gravityX}
                 onChange={(e) => handleGravityXChange(parseFloat(e.target.value))}
-                className="flex-1 accent-indigo-500 bg-slate-800 rounded h-1.5 cursor-pointer"
+                className="flex-1 accent-indigo-500 bg-slate-200 dark:bg-slate-800 rounded h-1.5 cursor-pointer"
               />
               <span className="text-indigo-400 font-mono text-[10px] w-8 text-right">
                 {gravityX.toFixed(1)}
@@ -163,7 +163,7 @@ export function PhysicsControls({ className = '' }: PhysicsControlsProps) {
             </div>
 
             <div className="flex items-center gap-2">
-              <label className="text-slate-400 font-mono text-[11px] w-14">
+              <label className="text-slate-600 dark:text-slate-400 font-mono text-[11px] w-14">
                 Grav Y:
               </label>
               <input
@@ -173,7 +173,7 @@ export function PhysicsControls({ className = '' }: PhysicsControlsProps) {
                 step="0.1"
                 value={gravityY}
                 onChange={(e) => handleGravityYChange(parseFloat(e.target.value))}
-                className="flex-1 accent-indigo-500 bg-slate-800 rounded h-1.5 cursor-pointer"
+                className="flex-1 accent-indigo-500 bg-slate-200 dark:bg-slate-800 rounded h-1.5 cursor-pointer"
               />
               <span className="text-indigo-400 font-mono text-[10px] w-8 text-right">
                 {gravityY.toFixed(1)}
@@ -182,8 +182,8 @@ export function PhysicsControls({ className = '' }: PhysicsControlsProps) {
           </div>
 
           {/* Time Scale Control */}
-          <div className="flex items-center gap-2 bg-slate-900/60 p-2.5 rounded-xl border border-slate-800/80">
-            <label className="text-slate-400 font-mono text-[11px] w-14">
+          <div className="flex items-center gap-2 bg-slate-100/60 dark:bg-slate-900/60 p-2.5 rounded-xl border border-slate-200/80 dark:border-slate-800/80">
+            <label className="text-slate-600 dark:text-slate-400 font-mono text-[11px] w-14">
               Speed:
             </label>
             <input
@@ -193,7 +193,7 @@ export function PhysicsControls({ className = '' }: PhysicsControlsProps) {
               step="0.1"
               value={timeScale}
               onChange={(e) => handleTimeScaleChange(parseFloat(e.target.value))}
-              className="flex-1 accent-cyan-500 bg-slate-800 rounded h-1.5 cursor-pointer"
+              className="flex-1 accent-cyan-500 bg-slate-200 dark:bg-slate-800 rounded h-1.5 cursor-pointer"
             />
             <span className="text-cyan-400 font-mono text-[10px] w-8 text-right">
               {timeScale.toFixed(1)}x

@@ -200,9 +200,9 @@ export function AudioTool({ roomId, onAddAudio }: AudioToolProps) {
       {!audioUrl && !isRecording && (
         <>
           <div className="flex items-center gap-2">
-            <div className="flex-1 h-px bg-slate-700/60" />
-            <span className="text-[10px] text-slate-500 uppercase font-medium">or upload file</span>
-            <div className="flex-1 h-px bg-slate-700/60" />
+            <div className="flex-1 h-px bg-slate-300/60 dark:bg-slate-700/60" />
+            <span className="text-[10px] text-slate-500 dark:text-slate-500 uppercase font-medium">or upload file</span>
+            <div className="flex-1 h-px bg-slate-300/60 dark:bg-slate-700/60" />
           </div>
 
           <input
@@ -210,7 +210,7 @@ export function AudioTool({ roomId, onAddAudio }: AudioToolProps) {
             type="file"
             accept="audio/*"
             onChange={handleFileUpload}
-            className="w-full text-xs text-slate-400 file:mr-2 file:px-2.5 file:py-1 file:bg-slate-800 file:border file:border-slate-700/80 file:rounded-lg file:text-xs file:font-medium file:text-slate-300 file:cursor-pointer hover:file:bg-slate-700"
+            className="w-full text-xs text-slate-600 dark:text-slate-400 file:mr-2 file:px-2.5 file:py-1 file:bg-slate-200 dark:file:bg-slate-800 file:border file:border-slate-300/80 dark:file:border-slate-700/80 file:rounded-lg file:text-xs file:font-medium file:text-slate-700 dark:file:text-slate-300 file:cursor-pointer hover:file:bg-slate-300 dark:hover:file:bg-slate-700"
             disabled={isRecording}
           />
         </>
@@ -218,7 +218,7 @@ export function AudioTool({ roomId, onAddAudio }: AudioToolProps) {
 
       {/* Audio Preview & Confirmation */}
       {audioUrl && (
-        <div className="flex flex-col gap-2 bg-slate-900/60 border border-slate-700/80 p-2.5 rounded-xl">
+        <div className="flex flex-col gap-2 bg-slate-100/60 dark:bg-slate-900/60 border border-slate-300/80 dark:border-slate-700/80 p-2.5 rounded-xl">
           <audio controls className="w-full h-8">
             <source src={audioUrl} />
             Your browser does not support the audio element.
@@ -228,7 +228,7 @@ export function AudioTool({ roomId, onAddAudio }: AudioToolProps) {
             <button
               type="button"
               onClick={handleDiscard}
-              className="px-2.5 py-1 text-xs text-slate-400 hover:text-slate-100 border border-slate-700/80 rounded-lg hover:bg-slate-800/60 transition-colors"
+              className="px-2.5 py-1 text-xs text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border border-slate-300/80 dark:border-slate-700/80 rounded-lg hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors"
             >
               Discard
             </button>

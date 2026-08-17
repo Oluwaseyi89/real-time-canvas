@@ -43,16 +43,16 @@ export function Modal({ isOpen, onClose, title, icon, children, footer, size = '
           aria-describedby={undefined}
           className={`fixed left-1/2 top-1/2 z-50 w-full -translate-x-1/2 -translate-y-1/2 ${SIZE_CLASSES[size]} p-4 outline-none animate-scale-in`}
         >
-          <div className="bg-slate-950/95 border border-slate-800 rounded-2xl shadow-2xl p-6 text-slate-100 backdrop-blur-xl max-h-[85vh] overflow-y-auto">
-            <div className="flex justify-between items-center pb-4 border-b border-slate-800/80 mb-5">
-              <Dialog.Title className="flex items-center gap-2 text-lg font-bold tracking-wide text-slate-100">
+          <div className="bg-slate-50/95 dark:bg-slate-950/95 border border-slate-200 dark:border-slate-800 rounded-2xl shadow-2xl p-6 text-slate-900 dark:text-slate-100 backdrop-blur-xl max-h-[85vh] overflow-y-auto">
+            <div className="flex justify-between items-center pb-4 border-b border-slate-200/80 dark:border-slate-800/80 mb-5">
+              <Dialog.Title className="flex items-center gap-2 text-lg font-bold tracking-wide text-slate-900 dark:text-slate-100">
                 {icon && <span className="text-xl">{icon}</span>}
                 <span>{title}</span>
               </Dialog.Title>
               <Dialog.Close asChild>
                 <button
                   type="button"
-                  className="p-1.5 rounded-lg text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 transition-colors cursor-pointer"
+                  className="p-1.5 rounded-lg text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
                   aria-label="Close dialog"
                 >
                   <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -65,7 +65,7 @@ export function Modal({ isOpen, onClose, title, icon, children, footer, size = '
             {children}
 
             {footer && (
-              <div className="flex gap-2.5 pt-3 mt-4 border-t border-slate-800/80">{footer}</div>
+              <div className="flex gap-2.5 pt-3 mt-4 border-t border-slate-200/80 dark:border-slate-800/80">{footer}</div>
             )}
           </div>
         </Dialog.Content>

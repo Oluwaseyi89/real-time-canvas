@@ -100,7 +100,7 @@ export function CreateRoomDialog({ isOpen, onClose, onSuccess }: CreateRoomDialo
 
         {/* Privacy Option Selection */}
         <div>
-          <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-400 mb-1.5">
+          <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">
             Room Privacy
           </label>
           <div className="grid grid-cols-2 gap-2.5">
@@ -111,14 +111,14 @@ export function CreateRoomDialog({ isOpen, onClose, onSuccess }: CreateRoomDialo
               className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all cursor-pointer ${
                 !isPrivate
                   ? 'bg-indigo-950/50 border-indigo-500/80 text-white shadow-lg shadow-indigo-950/50 ring-1 ring-indigo-500/50'
-                  : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:bg-slate-850'
+                  : 'bg-slate-100/60 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-850'
               }`}
             >
-              <div className="flex items-center gap-1.5 mb-1 font-semibold text-xs text-slate-200">
+              <div className="flex items-center gap-1.5 mb-1 font-semibold text-xs text-slate-800 dark:text-slate-200">
                 <span>🌐</span>
                 <span>Public</span>
               </div>
-              <span className="text-[10px] text-slate-400 leading-relaxed">
+              <span className="text-[10px] text-slate-600 dark:text-slate-400 leading-relaxed">
                 Anyone with the link can view and join
               </span>
             </button>
@@ -130,14 +130,14 @@ export function CreateRoomDialog({ isOpen, onClose, onSuccess }: CreateRoomDialo
               className={`flex flex-col items-start p-3 rounded-xl border text-left transition-all cursor-pointer ${
                 isPrivate
                   ? 'bg-indigo-950/50 border-indigo-500/80 text-white shadow-lg shadow-indigo-950/50 ring-1 ring-indigo-500/50'
-                  : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:bg-slate-850'
+                  : 'bg-slate-100/60 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-850'
               }`}
             >
-              <div className="flex items-center gap-1.5 mb-1 font-semibold text-xs text-slate-200">
+              <div className="flex items-center gap-1.5 mb-1 font-semibold text-xs text-slate-800 dark:text-slate-200">
                 <span>🔒</span>
                 <span>Private</span>
               </div>
-              <span className="text-[10px] text-slate-400 leading-relaxed">
+              <span className="text-[10px] text-slate-600 dark:text-slate-400 leading-relaxed">
                 Requires invite code or permission
               </span>
             </button>

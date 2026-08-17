@@ -6,17 +6,19 @@
  * and replaying canvas interactions at variable speeds.
  */
 
-import { useState, useCallback } from 'react'
+import { useCallback } from 'react'
 import { useTimeTravel } from '@/hooks/useTimeTravel'
 import { Tooltip } from '@/components/ui/Tooltip'
 
 interface TimeTravelControlsProps {
   className?: string
+  /** Docked by the parent dock panel — this is the panel's own close button. */
+  onClose?: () => void
 }
 
 const SPEED_PRESETS = [0.5, 1, 2, 4]
 
-export function TimeTravelControls({ className = '' }: TimeTravelControlsProps) {
+export function TimeTravelControls({ className = '', onClose }: TimeTravelControlsProps) {
   const {
     state,
     isRecording,
@@ -33,8 +35,6 @@ export function TimeTravelControls({ className = '' }: TimeTravelControlsProps) 
     clearEvents,
     syncFromServer,
   } = useTimeTravel()
-
-  const [isOpen, setIsOpen] = useState(true)
 
   const handleRecordToggle = useCallback(() => {
     if (isRecording) {
@@ -79,25 +79,9 @@ export function TimeTravelControls({ className = '' }: TimeTravelControlsProps) 
       ? (state.currentEventIndex / (state.events.length - 1 || 1)) * 100
       : 0
 
-  if (!isOpen) {
-    return (
-      <button
-        type="button"
-        onClick={() => setIsOpen(true)}
-        className="p-2.5 bg-slate-900/90 hover:bg-slate-800 text-slate-200 border border-slate-700/80 rounded-2xl shadow-xl backdrop-blur-md transition-all active:scale-95 flex items-center gap-2 group"
-        title="Show Time Travel Controls"
-      >
-        <svg className="w-5 h-5 text-indigo-400 group-hover:rotate-12 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <span className="text-xs font-semibold pr-1">Time Travel</span>
-      </button>
-    )
-  }
-
   return (
     <div
-      className={`w-80 p-3.5 rounded-2xl bg-slate-900/90 backdrop-blur-md border border-slate-700/70 shadow-2xl text-slate-200 select-none ${className}`}
+      className={`w-80 p-3.5 rounded-2xl bg-slate-100/90 dark:bg-slate-900/90 backdrop-blur-md border border-slate-300/70 dark:border-slate-700/70 shadow-2xl text-slate-800 dark:text-slate-200 select-none ${className}`}
     >
       {/* Header */}
       <div className="flex justify-between items-center mb-3">
@@ -105,7 +89,7 @@ export function TimeTravelControls({ className = '' }: TimeTravelControlsProps) 
           <svg className="w-4 h-4 text-indigo-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
           </svg>
-          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-300">Time Travel</h4>
+          <h4 className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Time Travel</h4>
         </div>
 
         <div className="flex items-center gap-2">
@@ -113,7 +97,7 @@ export function TimeTravelControls({ className = '' }: TimeTravelControlsProps) 
             <button
               type="button"
               onClick={() => syncFromServer()}
-              className="p-1 text-slate-400 hover:text-slate-100 rounded-lg hover:bg-slate-800 transition-colors"
+              className="p-1 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
@@ -127,14 +111,14 @@ export function TimeTravelControls({ className = '' }: TimeTravelControlsProps) 
               Rec
             </span>
           ) : (
-            <span className="text-[10px] text-slate-400 font-medium">Idle</span>
+            <span className="text-[10px] text-slate-600 dark:text-slate-400 font-medium">Idle</span>
           )}
 
           <Tooltip label="Minimize panel">
             <button
               type="button"
-              onClick={() => setIsOpen(false)}
-              className="p-1 text-slate-400 hover:text-slate-100 rounded-lg hover:bg-slate-800 transition-colors"
+              onClick={onClose}
+              className="p-1 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 rounded-lg hover:bg-slate-200 dark:hover:bg-slate-800 transition-colors"
             >
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -160,14 +144,14 @@ export function TimeTravelControls({ className = '' }: TimeTravelControlsProps) 
         </button>
 
         {/* Playback Controls */}
-        <div className="flex items-center justify-between bg-slate-800/60 p-1.5 rounded-xl border border-slate-700/50">
+        <div className="flex items-center justify-between bg-slate-200/60 dark:bg-slate-800/60 p-1.5 rounded-xl border border-slate-300/50 dark:border-slate-700/50">
           <div className="flex items-center gap-1">
             <Tooltip label="Step backward">
               <button
                 type="button"
                 onClick={stepBackward}
                 disabled={!state.events.length || state.isPlaying}
-                className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700/70 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="p-1.5 text-slate-700 dark:text-slate-300 hover:text-white hover:bg-slate-300/70 dark:hover:bg-slate-700/70 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" />
@@ -180,7 +164,7 @@ export function TimeTravelControls({ className = '' }: TimeTravelControlsProps) 
                 type="button"
                 onClick={handlePlayPause}
                 disabled={!state.events.length}
-                className="p-1.5 text-slate-100 bg-indigo-600/80 hover:bg-indigo-600 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
+                className="p-1.5 text-slate-900 dark:text-slate-100 bg-indigo-600/80 hover:bg-indigo-600 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors shadow-sm"
               >
                 {state.isPlaying && !state.isPaused ? (
                   <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -199,7 +183,7 @@ export function TimeTravelControls({ className = '' }: TimeTravelControlsProps) 
                 type="button"
                 onClick={stop}
                 disabled={!state.isPlaying}
-                className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700/70 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="p-1.5 text-slate-700 dark:text-slate-300 hover:text-white hover:bg-slate-300/70 dark:hover:bg-slate-700/70 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
                   <rect x="6" y="6" width="12" height="12" rx="1" />
@@ -212,7 +196,7 @@ export function TimeTravelControls({ className = '' }: TimeTravelControlsProps) 
                 type="button"
                 onClick={stepForward}
                 disabled={!state.events.length || state.isPlaying}
-                className="p-1.5 text-slate-300 hover:text-white hover:bg-slate-700/70 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                className="p-1.5 text-slate-700 dark:text-slate-300 hover:text-white hover:bg-slate-300/70 dark:hover:bg-slate-700/70 rounded-lg disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" />
@@ -221,7 +205,7 @@ export function TimeTravelControls({ className = '' }: TimeTravelControlsProps) 
             </Tooltip>
           </div>
 
-          <span className="text-[11px] font-mono font-medium text-slate-400 px-2">
+          <span className="text-[11px] font-mono font-medium text-slate-600 dark:text-slate-400 px-2">
             {state.events.length} {state.events.length === 1 ? 'event' : 'events'}
           </span>
         </div>
@@ -235,17 +219,17 @@ export function TimeTravelControls({ className = '' }: TimeTravelControlsProps) 
             value={progressPercent}
             onChange={handleSeek}
             disabled={!state.events.length}
-            className="w-full h-1.5 bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
+            className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-lg appearance-none cursor-pointer accent-indigo-500 disabled:cursor-not-allowed disabled:opacity-40"
           />
-          <div className="flex justify-between text-[10px] font-mono text-slate-400">
+          <div className="flex justify-between text-[10px] font-mono text-slate-600 dark:text-slate-400">
             <span>0:00</span>
             <span>{formatTime(state.duration)}</span>
           </div>
         </div>
 
         {/* Speed Controls */}
-        <div className="flex items-center justify-between gap-2 border-t border-slate-800/80 pt-2.5">
-          <span className="text-[11px] font-medium text-slate-400">Speed:</span>
+        <div className="flex items-center justify-between gap-2 border-t border-slate-200/80 dark:border-slate-800/80 pt-2.5">
+          <span className="text-[11px] font-medium text-slate-600 dark:text-slate-400">Speed:</span>
           <div className="flex gap-1">
             {SPEED_PRESETS.map((speed) => {
               const isSelected = state.speed === speed
@@ -257,7 +241,7 @@ export function TimeTravelControls({ className = '' }: TimeTravelControlsProps) 
                   className={`px-2 py-0.5 rounded text-[10px] font-mono font-bold transition-colors ${
                     isSelected
                       ? 'bg-indigo-500 text-white'
-                      : 'bg-slate-800 text-slate-300 hover:bg-slate-700'
+                      : 'bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 hover:bg-slate-300 dark:hover:bg-slate-700'
                   }`}
                 >
                   {speed}x

@@ -41,7 +41,7 @@ const ToastContext = createContext<ToastContextValue | null>(null)
 const VARIANT_CLASSES: Record<ToastVariant, string> = {
   success: 'bg-emerald-950/95 border-emerald-800/80 text-emerald-200',
   error: 'bg-rose-950/95 border-rose-800/80 text-rose-200',
-  info: 'bg-slate-950/95 border-slate-800 text-slate-200',
+  info: 'bg-slate-50/95 dark:bg-slate-950/95 border-slate-200 dark:border-slate-800 text-slate-800 dark:text-slate-200',
 }
 
 const VARIANT_ICON: Record<ToastVariant, string> = {

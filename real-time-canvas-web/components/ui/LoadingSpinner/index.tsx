@@ -16,7 +16,7 @@ const COLOR_CLASSES = {
   white: 'border-white/30 border-t-white',
   // For spinners on their own — page loading states, empty panels.
   indigo: 'border-indigo-500/20 border-t-indigo-500',
-  slate: 'border-slate-700 border-t-slate-300',
+  slate: 'border-slate-300 dark:border-slate-700 border-t-slate-300',
 } as const
 
 export type LoadingSpinnerSize = keyof typeof SIZE_CLASSES

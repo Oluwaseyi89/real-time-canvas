@@ -86,7 +86,7 @@ export function ShapeTool({ onAddShape }: ShapeToolProps) {
       {/* Top Bar: Shape Selector, Color Picker, Submit */}
       <div className="flex items-center gap-2">
         {/* Shape Buttons */}
-        <div className="flex items-center gap-1 bg-slate-900/80 p-1 rounded-xl border border-slate-700/80">
+        <div className="flex items-center gap-1 bg-slate-100/80 dark:bg-slate-900/80 p-1 rounded-xl border border-slate-300/80 dark:border-slate-700/80">
           {SHAPES.map((shape) => {
             const isActive = selectedShape === shape.type
             return (
@@ -97,7 +97,7 @@ export function ShapeTool({ onAddShape }: ShapeToolProps) {
                 className={`p-2 rounded-lg transition-all active:scale-95 ${
                   isActive
                     ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                    : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:bg-slate-200/60 dark:hover:bg-slate-800/60'
                 }`}
                 title={shape.label}
                 aria-label={shape.label}
@@ -109,7 +109,7 @@ export function ShapeTool({ onAddShape }: ShapeToolProps) {
         </div>
 
         {/* Custom Color Input Wrapper */}
-        <div className="relative flex items-center justify-center w-8 h-8 rounded-xl overflow-hidden border border-slate-700/80 bg-slate-900/80 cursor-pointer group">
+        <div className="relative flex items-center justify-center w-8 h-8 rounded-xl overflow-hidden border border-slate-300/80 dark:border-slate-700/80 bg-slate-100/80 dark:bg-slate-900/80 cursor-pointer group">
           <input
             type="color"
             value={fillColor}
@@ -118,7 +118,7 @@ export function ShapeTool({ onAddShape }: ShapeToolProps) {
             title="Choose custom color"
           />
           <span
-            className="w-5 h-5 rounded-md border border-slate-700/50 transition-transform group-hover:scale-110"
+            className="w-5 h-5 rounded-md border border-slate-300/50 dark:border-slate-700/50 transition-transform group-hover:scale-110"
             style={{ backgroundColor: fillColor }}
           />
         </div>
@@ -138,7 +138,7 @@ export function ShapeTool({ onAddShape }: ShapeToolProps) {
 
       {/* Bottom Bar: Quick Color Swatches */}
       <div className="flex items-center gap-1.5 px-1">
-        <span className="text-[10px] text-slate-500 font-semibold uppercase mr-1">Colors:</span>
+        <span className="text-[10px] text-slate-500 dark:text-slate-500 font-semibold uppercase mr-1">Colors:</span>
         {COLOR_PRESETS.map((color) => (
           <button
             key={color}

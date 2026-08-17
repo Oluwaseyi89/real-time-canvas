@@ -31,6 +31,7 @@ const DEFAULT_POSITION: MinimapPosition = {
 interface MinimapStore extends MinimapState {
   // Actions
   toggleVisibility: () => void
+  setVisible: (visible: boolean) => void
   toggleCollapse: () => void
   setPosition: (position: MinimapPosition) => void
   setConfig: (config: Partial<MinimapConfig>) => void
@@ -40,7 +41,10 @@ interface MinimapStore extends MinimapState {
 export const useMinimapStore = create<MinimapStore>()(
   persist(
     (set, get) => ({
-      isVisible: true,
+      // Docked/hidden by default — the room page's feature dock is now the
+      // single source of truth for whether the minimap panel is open, and
+      // mounts this component only when its "Radar" dock icon is active.
+      isVisible: false,
       isCollapsed: false,
       position: DEFAULT_POSITION,
       zoom: 1,
@@ -48,6 +52,10 @@ export const useMinimapStore = create<MinimapStore>()(
 
       toggleVisibility: () => {
         set((state) => ({ isVisible: !state.isVisible }))
+      },
+
+      setVisible: (visible: boolean) => {
+        set({ isVisible: visible })
       },
 
       toggleCollapse: () => {
@@ -66,7 +74,7 @@ export const useMinimapStore = create<MinimapStore>()(
 
       reset: () => {
         set({
-          isVisible: true,
+          isVisible: false,
           isCollapsed: false,
           position: DEFAULT_POSITION,
           zoom: 1,

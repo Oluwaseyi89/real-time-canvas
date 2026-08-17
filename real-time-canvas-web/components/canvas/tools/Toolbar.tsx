@@ -77,7 +77,6 @@ interface ToolbarProps {
 
 export function Toolbar({ className = '', roomId }: ToolbarProps) {
   const [activeTool, setActiveTool] = useState<ToolType>(null)
-  const [isOpen, setIsOpen] = useState(true)
 
   // Keyboard shortcut handlers
   useEffect(() => {
@@ -129,66 +128,36 @@ export function Toolbar({ className = '', roomId }: ToolbarProps) {
     <div className={`flex flex-col items-center gap-3 transition-all duration-200 ${className}`}>
       {/* Active Sub-Tool Popover Panel */}
       {activeTool && (
-        <div className="glass-panel p-3 rounded-2xl border border-slate-700/60 shadow-2xl backdrop-blur-xl animate-slide-in-bottom">
+        <div className="glass-panel p-3 rounded-2xl border border-slate-300/60 dark:border-slate-700/60 shadow-2xl backdrop-blur-xl animate-slide-in-bottom">
           {renderToolPanel()}
         </div>
       )}
 
       {/* Main Glassmorphic Dock */}
-      <div className="glass-panel p-1.5 rounded-2xl flex items-center gap-1 shadow-2xl border border-slate-700/60 backdrop-blur-xl">
-        {/* Expand / Collapse Toggle Button */}
-        <Tooltip label={isOpen ? 'Collapse toolbar' : 'Expand toolbar'}>
-          <button
-            onClick={() => {
-              setIsOpen(!isOpen)
-              if (isOpen) setActiveTool(null)
-            }}
-            className="p-2.5 rounded-xl text-slate-400 hover:text-slate-100 hover:bg-slate-800/60 transition-all active:scale-95"
-            aria-label={isOpen ? 'Collapse toolbar' : 'Expand toolbar'}
-          >
-            <svg
-              className={`w-4 h-4 transition-transform duration-300 ${isOpen ? 'rotate-0' : 'rotate-180'}`}
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-            </svg>
-          </button>
-        </Tooltip>
+      <div className="glass-panel p-1.5 rounded-2xl flex items-center gap-1 shadow-2xl border border-slate-300/60 dark:border-slate-700/60 backdrop-blur-xl">
+        {TOOLS.map((tool) => {
+          const isActive = activeTool === tool.type
+          return (
+            <Tooltip key={tool.type} label={tool.label} shortcut={tool.shortcut}>
+              <button
+                onClick={() => toggleTool(tool.type)}
+                className={`relative p-2.5 rounded-xl transition-all flex items-center justify-center active:scale-95 ${
+                  isActive
+                    ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/40'
+                    : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-800/60'
+                }`}
+                aria-label={`${tool.label} tool (${tool.shortcut})`}
+              >
+                {tool.icon(isActive)}
 
-        {isOpen && (
-          <>
-            <div className="w-[1px] h-5 bg-slate-800/80 mx-1" role="separator" />
-
-            {/* Tool Action Buttons */}
-            <div className="flex items-center gap-1">
-              {TOOLS.map((tool) => {
-                const isActive = activeTool === tool.type
-                return (
-                  <Tooltip key={tool.type} label={tool.label} shortcut={tool.shortcut}>
-                    <button
-                      onClick={() => toggleTool(tool.type)}
-                      className={`relative p-2.5 rounded-xl transition-all flex items-center justify-center active:scale-95 ${
-                        isActive
-                          ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/40'
-                          : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
-                      }`}
-                      aria-label={`${tool.label} tool (${tool.shortcut})`}
-                    >
-                      {tool.icon(isActive)}
-
-                      {/* Active state indicator dot */}
-                      {isActive && (
-                        <span className="absolute -bottom-1 w-1 h-1 rounded-full bg-white shadow-sm" />
-                      )}
-                    </button>
-                  </Tooltip>
-                )
-              })}
-            </div>
-          </>
-        )}
+                {/* Active state indicator dot */}
+                {isActive && (
+                  <span className="absolute -bottom-1 w-1 h-1 rounded-full bg-white shadow-sm" />
+                )}
+              </button>
+            </Tooltip>
+          )
+        })}
       </div>
     </div>
   )

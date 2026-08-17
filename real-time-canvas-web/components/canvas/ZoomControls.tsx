@@ -69,8 +69,8 @@ export function ZoomControls({
     >
       {/* Zoom Presets Popover */}
       {showPresets && (
-        <div className="absolute bottom-14 right-0 py-1.5 rounded-xl border border-slate-700/80 bg-slate-900/90 backdrop-blur-md shadow-2xl flex flex-col min-w-[130px] animate-slide-in-bottom z-50">
-          <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-400 border-b border-slate-800/80 mb-1">
+        <div className="absolute bottom-14 right-0 py-1.5 rounded-xl border border-slate-300/80 dark:border-slate-700/80 bg-slate-100/90 dark:bg-slate-900/90 backdrop-blur-md shadow-2xl flex flex-col min-w-[130px] animate-slide-in-bottom z-50">
+          <div className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wider text-slate-600 dark:text-slate-400 border-b border-slate-200/80 dark:border-slate-800/80 mb-1">
             Presets
           </div>
           {PRESETS.map((preset) => {
@@ -81,8 +81,8 @@ export function ZoomControls({
                 key={preset}
                 type="button"
                 onClick={() => handleSelectPreset(preset)}
-                className={`px-3 py-1.5 text-xs font-mono text-left hover:bg-slate-800/80 transition-colors flex items-center justify-between ${
-                  isSelected ? 'text-indigo-400 font-bold bg-indigo-500/10' : 'text-slate-300'
+                className={`px-3 py-1.5 text-xs font-mono text-left hover:bg-slate-200/80 dark:hover:bg-slate-800/80 transition-colors flex items-center justify-between ${
+                  isSelected ? 'text-indigo-400 font-bold bg-indigo-500/10' : 'text-slate-700 dark:text-slate-300'
                 }`}
               >
                 <span>{presetPercent}%</span>
@@ -90,14 +90,14 @@ export function ZoomControls({
               </button>
             )}
           )}
-          <div className="border-t border-slate-800/80 my-1" />
+          <div className="border-t border-slate-200/80 dark:border-slate-800/80 my-1" />
           <button
             type="button"
             onClick={() => {
               onFitToView()
               setShowPresets(false)
             }}
-            className="px-3 py-1.5 text-xs text-left text-slate-400 hover:text-white hover:bg-slate-800/80 transition-colors"
+            className="px-3 py-1.5 text-xs text-left text-slate-600 dark:text-slate-400 hover:text-white hover:bg-slate-200/80 dark:hover:bg-slate-800/80 transition-colors"
           >
             Fit to Content
           </button>
@@ -105,13 +105,13 @@ export function ZoomControls({
       )}
 
       {/* Main Bar */}
-      <div className="p-1 rounded-2xl flex items-center gap-1 shadow-xl border border-slate-700/60 bg-slate-900/80 backdrop-blur-md">
+      <div className="p-1 rounded-2xl flex items-center gap-1 shadow-xl border border-slate-300/60 dark:border-slate-700/60 bg-slate-100/80 dark:bg-slate-900/80 backdrop-blur-md">
         {/* Zoom Out */}
         <Tooltip label="Zoom out" shortcut="-">
           <button
             type="button"
             onClick={onZoomOut}
-            className="p-2 text-slate-400 hover:text-white hover:bg-slate-800/60 rounded-xl transition-all active:scale-95"
+            className="p-2 text-slate-600 dark:text-slate-400 hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800/60 rounded-xl transition-all active:scale-95"
             aria-label="Zoom out"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -125,7 +125,7 @@ export function ZoomControls({
           <button
             type="button"
             onClick={() => setShowPresets((prev) => !prev)}
-            className="px-2.5 py-1 text-xs font-mono font-bold text-slate-200 hover:text-indigo-400 hover:bg-slate-800/60 rounded-lg transition-all"
+            className="px-2.5 py-1 text-xs font-mono font-bold text-slate-800 dark:text-slate-200 hover:text-indigo-400 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 rounded-lg transition-all"
             aria-label={`Current zoom ${zoomPercentage}%. Click for presets.`}
           >
             {zoomPercentage}%
@@ -137,7 +137,7 @@ export function ZoomControls({
           <button
             type="button"
             onClick={onZoomIn}
-            className="p-2 text-slate-400 hover:text-white hover:bg-slate-800/60 rounded-xl transition-all active:scale-95"
+            className="p-2 text-slate-600 dark:text-slate-400 hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800/60 rounded-xl transition-all active:scale-95"
             aria-label="Zoom in"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -146,14 +146,14 @@ export function ZoomControls({
           </button>
         </Tooltip>
 
-        <div className="w-[1px] h-4 bg-slate-800 mx-0.5" role="separator" />
+        <div className="w-[1px] h-4 bg-slate-200 dark:bg-slate-800 mx-0.5" role="separator" />
 
         {/* Fit to View */}
         <Tooltip label="Fit to view" shortcut="Shift+1">
           <button
             type="button"
             onClick={onFitToView}
-            className="p-2 text-slate-400 hover:text-white hover:bg-slate-800/60 rounded-xl transition-all active:scale-95"
+            className="p-2 text-slate-600 dark:text-slate-400 hover:text-white hover:bg-slate-200/60 dark:hover:bg-slate-800/60 rounded-xl transition-all active:scale-95"
             aria-label="Fit to view"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">

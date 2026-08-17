@@ -35,17 +35,17 @@ export function UserPresence({ className = '', maxDisplay = 5 }: UserPresencePro
   if (userCount <= 1 && activeUserList.length === 0) {
     return (
       <div
-        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-900/80 border border-slate-800 backdrop-blur-md text-xs text-slate-400 shadow-md ${className}`}
+        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 backdrop-blur-md text-xs text-slate-600 dark:text-slate-400 shadow-md ${className}`}
       >
         <span className="w-2 h-2 rounded-full bg-emerald-500/80 animate-pulse" />
-        <span className="font-medium text-slate-300">Solo Mode</span>
+        <span className="font-medium text-slate-700 dark:text-slate-300">Solo Mode</span>
       </div>
     )
   }
 
   return (
     <div
-      className={`inline-flex items-center gap-3 px-3 py-1.5 rounded-full bg-slate-900/90 border border-slate-700/60 shadow-xl backdrop-blur-md select-none ${className}`}
+      className={`inline-flex items-center gap-3 px-3 py-1.5 rounded-full bg-slate-100/90 dark:bg-slate-900/90 border border-slate-300/60 dark:border-slate-700/60 shadow-xl backdrop-blur-md select-none ${className}`}
     >
       {/* Avatar Stack */}
       <div className="flex items-center -space-x-2.5">
@@ -60,7 +60,7 @@ export function UserPresence({ className = '', maxDisplay = 5 }: UserPresencePro
             >
               {/* Avatar Circle */}
               <div
-                className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ring-2 ring-slate-950 shadow-md overflow-hidden"
+                className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ring-2 ring-slate-50 dark:ring-slate-950 shadow-md overflow-hidden"
                 style={{
                   backgroundColor: userColor,
                   boxShadow: `0 0 10px ${userColor}33`,
@@ -78,11 +78,11 @@ export function UserPresence({ className = '', maxDisplay = 5 }: UserPresencePro
               </div>
 
               {/* Online Indicator Dot */}
-              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-slate-950 bg-emerald-400" />
+              <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full ring-2 ring-slate-50 dark:ring-slate-950 bg-emerald-400" />
 
               {/* Real-time Typing Bubble */}
               {user.isTyping && (
-                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-slate-950 ring-1 ring-indigo-500/60 shadow-md">
+                <span className="absolute -top-1 -right-1 flex h-4 w-4 items-center justify-center rounded-full bg-slate-50 dark:bg-slate-950 ring-1 ring-indigo-500/60 shadow-md">
                   <span className="flex gap-0.5 items-center justify-center">
                     <span className="w-0.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.3s]" />
                     <span className="w-0.5 h-1.5 bg-indigo-400 rounded-full animate-bounce [animation-delay:-0.15s]" />
@@ -93,7 +93,7 @@ export function UserPresence({ className = '', maxDisplay = 5 }: UserPresencePro
 
               {/* Hover Tooltip */}
               <div className="absolute top-10 left-1/2 -translate-x-1/2 opacity-0 group-hover:opacity-100 transition-all duration-150 pointer-events-none z-50 min-w-max">
-                <div className="bg-slate-950/95 text-slate-100 text-[11px] font-medium px-2.5 py-1 rounded-lg border border-slate-700/80 shadow-2xl backdrop-blur-md flex items-center gap-2">
+                <div className="bg-slate-50/95 dark:bg-slate-950/95 text-slate-900 dark:text-slate-100 text-[11px] font-medium px-2.5 py-1 rounded-lg border border-slate-300/80 dark:border-slate-700/80 shadow-2xl backdrop-blur-md flex items-center gap-2">
                   <span
                     className="w-2 h-2 rounded-full"
                     style={{ backgroundColor: userColor }}
@@ -112,20 +112,20 @@ export function UserPresence({ className = '', maxDisplay = 5 }: UserPresencePro
 
         {/* Overflow Indicator */}
         {remainingCount > 0 && (
-          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center bg-slate-800 text-slate-300 text-xs font-bold ring-2 ring-slate-950 border border-slate-700/80 shadow-inner">
+          <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-full flex items-center justify-center bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-300 text-xs font-bold ring-2 ring-slate-50 dark:ring-slate-950 border border-slate-300/80 dark:border-slate-700/80 shadow-inner">
             +{remainingCount}
           </div>
         )}
       </div>
 
       {/* Online Status Pill */}
-      <div className="flex items-center gap-1.5 text-xs text-slate-300 pr-0.5 font-medium">
+      <div className="flex items-center gap-1.5 text-xs text-slate-700 dark:text-slate-300 pr-0.5 font-medium">
         <span className="relative flex h-2 w-2">
           <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
           <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
         </span>
-        <span className="font-mono text-slate-100">{userCount}</span>
-        <span className="text-slate-400 text-[11px]">
+        <span className="font-mono text-slate-900 dark:text-slate-100">{userCount}</span>
+        <span className="text-slate-600 dark:text-slate-400 text-[11px]">
           {userCount === 1 ? 'active' : 'active'}
         </span>
       </div>

@@ -15,7 +15,7 @@ const VARIANT_CLASSES: Record<ButtonVariant, string> = {
   primary:
     'bg-indigo-600 hover:bg-indigo-500 text-white border border-indigo-500/50 shadow-lg shadow-indigo-950/50',
   secondary:
-    'bg-slate-900 hover:bg-slate-800 border border-slate-800 text-slate-300 hover:text-slate-100',
+    'bg-slate-100 dark:bg-slate-900 hover:bg-slate-200 dark:hover:bg-slate-800 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100',
   danger:
     'bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white border border-rose-500/50',
   ghost:

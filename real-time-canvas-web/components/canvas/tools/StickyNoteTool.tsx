@@ -64,12 +64,12 @@ export function StickyNoteTool({ onAddSticky }: StickyNoteToolProps) {
           onKeyDown={handleKeyDown}
           placeholder="Write a note... (Enter to add, Shift+Enter for new line)"
           rows={3}
-          className="w-full px-2.5 py-2 bg-slate-900/80 border border-slate-700/80 rounded-xl text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all resize-none"
+          className="w-full px-2.5 py-2 bg-slate-100/80 dark:bg-slate-900/80 border border-slate-300/80 dark:border-slate-700/80 rounded-xl text-xs text-slate-900 dark:text-slate-100 placeholder-slate-500 dark:placeholder-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-all resize-none"
         />
 
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] text-slate-500 font-semibold uppercase mr-1">Color:</span>
+            <span className="text-[10px] text-slate-500 dark:text-slate-500 font-semibold uppercase mr-1">Color:</span>
             {COLORS.map((color) => {
               const isSelected = selectedColor.value === color.value
               return (
@@ -80,7 +80,7 @@ export function StickyNoteTool({ onAddSticky }: StickyNoteToolProps) {
                   className={`w-6 h-6 rounded-full border transition-all transform ${
                     isSelected
                       ? 'scale-110 ring-2 ring-indigo-400 ring-offset-1 ring-offset-slate-900 border-transparent'
-                      : 'border-slate-700/60 hover:scale-105'
+                      : 'border-slate-300/60 dark:border-slate-700/60 hover:scale-105'
                   }`}
                   style={{ backgroundColor: color.value }}
                   title={color.name}
