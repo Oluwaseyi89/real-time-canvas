@@ -111,6 +111,14 @@ export function DockFlyout({
       // toggle logic — treating them as "outside" here too would race with
       // that toggle and immediately reopen a panel the user just closed.
       if (target.closest('[data-dock-root]')) return
+      // Clicks on the canvas itself are a real interaction (drawing a
+      // shape, selecting/moving an object), not a "dismiss this panel"
+      // gesture — closing here raced with the shape tool specifically:
+      // `pointerdown` fires before Fabric's own `mousedown`, so closing
+      // (and unmounting the Shape tool) on this same click cleared
+      // drawingShapeType before useCanvas.ts's mousedown handler ever saw
+      // it, silently swallowing the click instead of drawing anything.
+      if (target.closest('[data-canvas-root]')) return
       if (panelRef.current && !panelRef.current.contains(target)) {
         onClose()
       }

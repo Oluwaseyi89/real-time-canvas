@@ -907,6 +907,7 @@ export default function CanvasRoomPage() {
       {/* Main Canvas Workspace Container */}
       <div
         ref={containerRef}
+        data-canvas-root
         className="w-full h-full relative z-0 touch-none cursor-crosshair"
       >
         <canvas

@@ -14,6 +14,7 @@
 
 import { useState } from 'react'
 import { useDrawingStore } from '@/store/drawingStore'
+import { useCanvasStore } from '@/store/canvasStore'
 
 type ColorMode = 'fill' | 'outline'
 
@@ -37,8 +38,26 @@ export function ColorPalette() {
   const [mode, setMode] = useState<ColorMode>('fill')
 
   const applyColor = (color: string, target: ColorMode) => {
+    // Sets the default new shapes get created with...
     if (target === 'fill') setShapeFillColor(color)
     else setShapeStrokeColor(color)
+
+    // ...and, if something's already selected, restyles it live too —
+    // otherwise the palette would only ever affect shapes drawn *after*
+    // you picked a color, never the one you're looking at. Firing Fabric's
+    // own 'object:modified' event (rather than just calling canvas.renderAll)
+    // reuses the room page's existing sync pipeline, so the recolor
+    // persists and broadcasts to other clients exactly like a drag/resize
+    // would.
+    const canvas = useCanvasStore.getState().canvas
+    if (!canvas) return
+    const activeObjects = canvas.getActiveObjects()
+    if (activeObjects.length === 0) return
+    activeObjects.forEach((obj) => {
+      obj.set(target === 'fill' ? { fill: color } : { stroke: color })
+      canvas.fire('object:modified', { target: obj })
+    })
+    canvas.requestRenderAll()
   }
 
   const handleSwatchClick = (color: string) => applyColor(color, mode)
@@ -112,7 +131,7 @@ export function ColorPalette() {
             <input
               type="color"
               value={shapeFillColor === 'transparent' ? '#3b82f6' : shapeFillColor}
-              onChange={(e) => setShapeFillColor(e.target.value)}
+              onChange={(e) => applyColor(e.target.value, 'fill')}
               className="absolute -inset-2 w-9 h-9 opacity-0 cursor-pointer"
             />
             <span className="absolute inset-0" style={{ backgroundColor: shapeFillColor }} />
@@ -125,7 +144,7 @@ export function ColorPalette() {
             <input
               type="color"
               value={shapeStrokeColor === 'transparent' ? '#2563eb' : shapeStrokeColor}
-              onChange={(e) => setShapeStrokeColor(e.target.value)}
+              onChange={(e) => applyColor(e.target.value, 'outline')}
               className="absolute -inset-2 w-9 h-9 opacity-0 cursor-pointer"
             />
             <span className="absolute inset-0" style={{ backgroundColor: shapeStrokeColor }} />
