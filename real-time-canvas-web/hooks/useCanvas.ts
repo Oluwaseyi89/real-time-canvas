@@ -18,6 +18,10 @@ import {
   Rect,
   Circle,
   Triangle,
+  Line,
+  ActiveSelection,
+  Group,
+  PencilBrush,
 } from 'fabric'
 import { useCanvasStore } from '@/store/canvasStore'
 import { useDrawingStore, DrawableShapeType } from '@/store/drawingStore'
@@ -44,12 +48,27 @@ function createShapePreview(type: DrawableShapeType, x: number, y: number, fill:
       return new Circle({ ...common, radius: 0 })
     case 'triangle':
       return new Triangle({ ...common, width: 0, height: 0 })
+    case 'line':
+      return new Line([x, y, x, y], {
+        stroke,
+        strokeWidth: 2,
+        strokeDashArray: [6, 4],
+        selectable: false,
+        evented: false,
+        objectCaching: false,
+      })
     default:
       return new Rect({ ...common, width: 0, height: 0 })
   }
 }
 
 function updateShapePreview(preview: FabricObject, type: DrawableShapeType, x1: number, y1: number, x2: number, y2: number) {
+  if (type === 'line') {
+    ;(preview as Line).set({ x1, y1, x2, y2 })
+    preview.setCoords()
+    return
+  }
+
   const left = Math.min(x1, x2)
   const top = Math.min(y1, y2)
   const width = Math.abs(x2 - x1)
@@ -69,11 +88,19 @@ function hexToRgba(hex: string, alpha: number): string {
   return `rgba(${parseInt(r, 16)}, ${parseInt(g, 16)}, ${parseInt(b, 16)}, ${alpha})`
 }
 
-/** Final left/top/width-height (or radius, for circles) for a drawn shape.
+/** Final left/top/width-height (or radius/endpoints) for a drawn shape.
  * A real drag uses its own bounds; a plain tap falls back to the same
  * default size the old "Add Shape" button always placed, centered on the
  * tap point instead of a fixed canvas position. */
 function computeShapeOptions(type: DrawableShapeType, x1: number, y1: number, x2: number, y2: number, isDrag: boolean) {
+  if (type === 'line') {
+    if (!isDrag) {
+      const halfLength = 60
+      return { x1: x1 - halfLength, y1, x2: x1 + halfLength, y2: y1 }
+    }
+    return { x1, y1, x2, y2 }
+  }
+
   if (!isDrag) {
     if (type === 'circle') {
       const radius = 50
@@ -123,6 +150,7 @@ export function useCanvas(options: UseCanvasOptions = {}) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
   const containerElRef = useRef<HTMLDivElement | null>(null)
   const rendererRef = useRef<CanvasRenderer | null>(null)
+  const stuckTransformCleanupRef = useRef<(() => void) | null>(null)
 
   // The room page mounts the container behind its own `isReady` gate, which
   // is false on the very first render — so a plain useRef here is still
@@ -171,6 +199,18 @@ export function useCanvas(options: UseCanvasOptions = {}) {
       if (e.target) {
         optionsRef.current.onObjectRemoved?.(e.target)
       }
+    })
+
+    // Freehand (pencil) stroke completed — Fabric's own isDrawingMode brush
+    // already constructed the Path and added it to canvas by the time this
+    // fires, but object:added saw it before it had any id/type (the app's
+    // onObjectAdded guard skips untagged objects), so it never broadcast.
+    // Tagging it here and re-invoking onObjectAdded directly is what
+    // actually syncs it — same object, same callback, just called once more
+    // now that it's tagged.
+    fabricCanvas.on('path:created', (e: { path: FabricObject }) => {
+      const tagged = ObjectFactory.tagObject(e.path, 'path')
+      optionsRef.current.onObjectAdded?.(tagged)
     })
 
     // Object selected event
@@ -301,13 +341,19 @@ export function useCanvas(options: UseCanvasOptions = {}) {
         const renderer = useCanvasStore.getState().renderer
         if (renderer) {
           const shapeOptions = computeShapeOptions(type, startX, startY, pointer.x, pointer.y, isDrag)
-          const factoryOptions = { ...shapeOptions, fill: shapeFillColor, stroke: shapeStrokeColor }
-          const obj =
-            type === 'circle'
-              ? ObjectFactory.createCircle(factoryOptions)
-              : type === 'triangle'
-                ? ObjectFactory.createTriangle(factoryOptions)
-                : ObjectFactory.createRectangle(factoryOptions)
+          let obj
+          if (type === 'line') {
+            const { x1, y1, x2, y2 } = shapeOptions as { x1: number; y1: number; x2: number; y2: number }
+            obj = ObjectFactory.createLine([x1, y1, x2, y2], { stroke: shapeStrokeColor })
+          } else {
+            const factoryOptions = { ...shapeOptions, fill: shapeFillColor, stroke: shapeStrokeColor }
+            obj =
+              type === 'circle'
+                ? ObjectFactory.createCircle(factoryOptions)
+                : type === 'triangle'
+                  ? ObjectFactory.createTriangle(factoryOptions)
+                  : ObjectFactory.createRectangle(factoryOptions)
+          }
           renderer.addObject(obj, obj.id)
           useCanvasStore.getState().addObject(obj)
         }
@@ -320,6 +366,38 @@ export function useCanvas(options: UseCanvasOptions = {}) {
         fabricCanvas.defaultCursor = 'default'
       }
     })
+
+    // Safety net for a rare Fabric v6 condition where an object transform
+    // (drag/resize) never gets finalized: Fabric tracks the in-progress
+    // transform on `_currentTransform` and normally clears it from its own
+    // document-level mouseup listener (added in `_onMouseDown`, so it still
+    // fires even if the pointer leaves the canvas mid-drag) — but if that
+    // listener doesn't run to completion for this particular mouseup, the
+    // transform is left stuck, and every future mousemove keeps applying it
+    // to the object regardless of whether any button is actually held,
+    // since Fabric's own transform-continuation check only looks at whether
+    // `_currentTransform` is set, not the real button state. A window-level
+    // capture-phase listener sees every mouseup delivered to the page
+    // (after Fabric's own document listener has already had its turn, so
+    // this is a no-op on the overwhelmingly common case where Fabric
+    // finalized normally) and force-completes any transform still marked
+    // in-progress, using Fabric's own finalize routine so the usual
+    // object:modified sync/broadcast still fires for the final position.
+    const forceFinalizeStuckTransform = (e: MouseEvent) => {
+      const canvasWithInternals = fabricCanvas as unknown as {
+        _currentTransform: unknown
+        _finalizeCurrentTransform?: (e: MouseEvent) => void
+      }
+      if (canvasWithInternals._currentTransform) {
+        canvasWithInternals._finalizeCurrentTransform?.(e)
+        canvasWithInternals._currentTransform = null
+        fabricCanvas.requestRenderAll()
+      }
+    }
+    window.addEventListener('mouseup', forceFinalizeStuckTransform)
+    stuckTransformCleanupRef.current = () => {
+      window.removeEventListener('mouseup', forceFinalizeStuckTransform)
+    }
 
     // Prevent default right-click context menu on canvas wrapper element
     if (fabricCanvas.getSelectionElement()) {
@@ -775,6 +853,8 @@ export function useCanvas(options: UseCanvasOptions = {}) {
         if (currentCanvas) {
           disposeCanvas(currentCanvas)
         }
+        stuckTransformCleanupRef.current?.()
+        stuckTransformCleanupRef.current = null
         setIsInitialized(false)
       }
     }
@@ -796,6 +876,100 @@ export function useCanvas(options: UseCanvasOptions = {}) {
     return () => window.removeEventListener('resize', handleResize)
   }, [canvas, setViewport])
 
+  // Freehand (pencil) drawing mode — armed by PencilTool through
+  // drawingStore rather than touching the canvas directly, the same
+  // indirection ShapeTool uses for drawingShapeType. Subscribing outside
+  // React's own state (zustand's subscribe, not the useDrawingStore hook)
+  // avoids re-rendering this component on every stroke-color tweak; this
+  // effect only exists to mirror store state onto the live Fabric canvas.
+  useEffect(() => {
+    if (!canvas) return
+
+    const applyPencilState = (state: ReturnType<typeof useDrawingStore.getState>) => {
+      // Fabric v6 never constructs a default brush itself — isDrawingMode
+      // alone does nothing until freeDrawingBrush actually exists, since
+      // Canvas's own mouse handlers guard every brush call with
+      // `this.freeDrawingBrush && ...`. Created lazily, once, the first
+      // time pencil mode is armed.
+      if (!canvas.freeDrawingBrush) {
+        canvas.freeDrawingBrush = new PencilBrush(canvas)
+      }
+      canvas.isDrawingMode = state.pencilActive
+      if (state.pencilActive) {
+        canvas.freeDrawingBrush.color =
+          state.shapeStrokeColor === 'transparent' ? '#1a1a1a' : state.shapeStrokeColor
+        canvas.freeDrawingBrush.width = state.pencilWidth
+      }
+    }
+
+    applyPencilState(useDrawingStore.getState())
+    return useDrawingStore.subscribe(applyPencilState)
+  }, [canvas])
+
+  /**
+   * Selection actions — read the canvas fresh from the store rather than
+   * closing over the `canvas` variable above, matching every add*() helper
+   * in this file, so callers from tool panels (whose own useCanvas() call
+   * never has a real canvas) still reach the room page's actual instance.
+   */
+  const deselectAll = useCallback(() => {
+    const activeCanvas = useCanvasStore.getState().canvas
+    if (!activeCanvas || !activeCanvas.getActiveObject()) return
+    activeCanvas.discardActiveObject()
+    activeCanvas.requestRenderAll()
+  }, [])
+
+  const deleteSelected = useCallback(() => {
+    const activeCanvas = useCanvasStore.getState().canvas
+    if (!activeCanvas) return
+    const active = activeCanvas.getActiveObjects()
+    if (active.length === 0) return
+    activeCanvas.discardActiveObject()
+    // canvas.remove() fires 'object:removed' per object, which the room
+    // page's onObjectRemoved already turns into a broadcast + time-travel
+    // record + physics body cleanup — nothing further to sync here.
+    active.forEach((obj) => activeCanvas.remove(obj))
+    activeCanvas.requestRenderAll()
+  }, [])
+
+  // Grouping/ungrouping only needs to run the raw Fabric add/remove calls —
+  // same reasoning as deleteSelected above, onObjectAdded/onObjectRemoved
+  // already broadcast+record whatever gets added or removed, regardless of
+  // why.
+  const groupSelection = useCallback(() => {
+    const activeCanvas = useCanvasStore.getState().canvas
+    if (!activeCanvas) return
+    const active = activeCanvas.getActiveObject()
+    if (!active || active.type !== 'activeselection') return
+
+    const objects = (active as ActiveSelection).getObjects().slice()
+    if (objects.length < 2) return
+
+    activeCanvas.discardActiveObject()
+    objects.forEach((obj) => activeCanvas.remove(obj))
+
+    const group = ObjectFactory.createGroup(objects as (FabricObject & Partial<CanvasObject>)[])
+    activeCanvas.add(group)
+    activeCanvas.setActiveObject(group)
+    activeCanvas.requestRenderAll()
+  }, [])
+
+  const ungroupSelection = useCallback(() => {
+    const activeCanvas = useCanvasStore.getState().canvas
+    if (!activeCanvas) return
+    const active = activeCanvas.getActiveObject()
+    if (!active || active.type !== 'group') return
+
+    const groupObj = active as Group
+    const objects = groupObj.removeAll()
+    activeCanvas.remove(groupObj)
+    objects.forEach((obj) => activeCanvas.add(obj))
+
+    const selection = new ActiveSelection(objects, { canvas: activeCanvas })
+    activeCanvas.setActiveObject(selection)
+    activeCanvas.requestRenderAll()
+  }, [])
+
   return {
     canvasRef,
     containerRef,
@@ -812,6 +986,10 @@ export function useCanvas(options: UseCanvasOptions = {}) {
     addAudio,
     removeObject,
     clearAll,
+    deselectAll,
+    deleteSelected,
+    groupSelection,
+    ungroupSelection,
     zoomIn,
     zoomOut,
     resetView,

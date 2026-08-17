@@ -48,6 +48,25 @@ import { Object as FabricObject } from 'fabric'
 // usePhysics() call for why an inline object literal here was a real bug.
 const PHYSICS_GRAVITY = { x: 0, y: 1 }
 
+// custom.toObject() runs inside Fabric's own synchronous event-firing
+// chain (canvas.add()/discardActiveObject()/_finalizeCurrentTransform()).
+// An uncaught throw there — observed with Group/ActiveSelection instances
+// whose layoutManager isn't a standard LayoutManager after certain
+// group/ungroup + transform sequences, a Fabric v6 edge case — propagates
+// up through Fabric's internal handlers and aborts whatever cleanup they
+// were mid-way through (e.g. discardActiveObject never clears
+// _activeObject, so Escape visibly fails to deselect). Sync/broadcast
+// payloads must never be allowed to break that chain.
+function safeToObject(obj: { toObject?: (keys: string[]) => Record<string, unknown> }): Record<string, unknown> {
+  if (!obj.toObject) return {}
+  try {
+    return obj.toObject(['metadata', 'createdBy'])
+  } catch (error) {
+    console.warn('[CanvasRoom] toObject() failed, syncing without full data:', error)
+    return {}
+  }
+}
+
 export default function CanvasRoomPage() {
   const params = useParams()
   const router = useRouter()
@@ -250,6 +269,10 @@ export default function CanvasRoomPage() {
     resetView,
     fitToView,
     isInitialized,
+    deselectAll,
+    deleteSelected,
+    groupSelection,
+    ungroupSelection,
   } = useCanvas({
     onObjectAdded: async (obj) => {
       const custom = obj as any
@@ -272,7 +295,18 @@ export default function CanvasRoomPage() {
       // createdBy; see attachCustomProps in objectFactory.ts) has to be
       // requested explicitly or it silently never reaches the broadcast/
       // persisted payload, even though it's a real property on the object.
-      const data = custom.toObject ? custom.toObject(['metadata', 'createdBy']) : {}
+      // Groups are the one exception: ObjectFactory.createGroup precomputes
+      // this payload itself (__syncData) rather than using a plain
+      // toObject() call here, since correctly serializing its children for
+      // Group.fromObject() on other clients needs extra care — see that
+      // factory method's comment for why.
+      // toObject() is called from inside Fabric's own synchronous event
+      // chain (fired by canvas.add()) — an uncaught throw here (observed
+      // with Group/ActiveSelection instances whose layoutManager becomes
+      // non-standard after certain group/ungroup + transform sequences,
+      // a Fabric v6 edge case) would propagate up through Fabric's internal
+      // handlers and abort its own state cleanup, so this must never throw.
+      const data = custom.__syncData ?? safeToObject(custom)
       const position = { x: custom.left || 0, y: custom.top || 0 }
 
       // Record event for time travel
@@ -345,7 +379,7 @@ export default function CanvasRoomPage() {
 
       // See the matching comment in onObjectAdded above — same gap applies
       // to modify-broadcasts, not just the initial create.
-      const updates = custom.toObject ? custom.toObject(['metadata', 'createdBy']) : {}
+      const updates = safeToObject(custom)
       recordEvent('object:update', { objectId: custom.id, updates })
       broadcastObjectUpdate({ objectId: custom.id, updates, userId })
     },
@@ -377,6 +411,15 @@ export default function CanvasRoomPage() {
     onObjectRemoved: (obj) => {
       const custom = obj as any
       if (!custom.id) return
+
+      // Whatever removed this object (Delete key, ungroup, a remote
+      // delete...) left its physics body, if any, orphaned — still
+      // simulating in Matter but pointing at a Fabric object no longer on
+      // canvas. This runs for every removal path since they all funnel
+      // through canvas.remove() -> this callback.
+      if (physicsEngine && useCanvasStore.getState().physicsEnabled) {
+        removeBody(custom.id)
+      }
 
       if (remoteOriginDeletesRef.current.has(custom.id)) {
         // This removal came from applying a remote object:delete message —
@@ -786,6 +829,43 @@ export default function CanvasRoomPage() {
       if (frameId !== null) cancelAnimationFrame(frameId)
     }
   }, [physicsEnabled, physicsEngine, attractBody, repelBody])
+
+  // Selection keybinds — Escape deselects, Delete/Backspace removes the
+  // current selection, Ctrl/Cmd+G groups a multi-selection, Ctrl/Cmd+Shift+G
+  // ungroups. Shift-click multi-select itself needs no code here: it's
+  // Fabric's native ActiveSelection behavior, already enabled by
+  // CANVAS_CONFIG.selection and never disabled outside shape-drawing/pan/
+  // pinch (see useCanvas.ts).
+  useEffect(() => {
+    const isTypingTarget = (el: EventTarget | null) => {
+      const target = el as HTMLElement | null
+      return !!target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable)
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (isTypingTarget(e.target)) return
+
+      if (e.key === 'Escape') {
+        deselectAll()
+        return
+      }
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault()
+        deleteSelected()
+        return
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') {
+        e.preventDefault()
+        if (e.shiftKey) ungroupSelection()
+        else groupSelection()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  }, [deselectAll, deleteSelected, groupSelection, ungroupSelection])
 
   // Mouse Movement Cursor Tracking. Broadcasts in *scene* coordinates (the
   // same plane as object.left/top, unaffected by zoom/pan) rather than raw

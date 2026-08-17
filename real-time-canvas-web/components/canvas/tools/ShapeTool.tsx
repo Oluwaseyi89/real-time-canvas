@@ -10,9 +10,9 @@
  */
 
 import { useEffect, useState } from 'react'
-import { useDrawingStore } from '@/store/drawingStore'
+import { useDrawingStore, DrawableShapeType } from '@/store/drawingStore'
 
-type ShapeType = 'rect' | 'circle' | 'triangle'
+type ShapeType = DrawableShapeType
 
 interface ShapeOption {
   type: ShapeType
@@ -45,6 +45,15 @@ const SHAPES: ShapeOption[] = [
     icon: (active) => (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={active ? 2.5 : 2} d="M12 4l9 16H3L12 4z" />
+      </svg>
+    ),
+  },
+  {
+    type: 'line',
+    label: 'Line',
+    icon: (active) => (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={active ? 2.5 : 2} d="M5 19L19 5" />
       </svg>
     ),
   },

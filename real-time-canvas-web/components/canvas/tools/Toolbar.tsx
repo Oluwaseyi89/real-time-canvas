@@ -3,12 +3,13 @@
 import { useState, useEffect } from 'react'
 import { TextTool } from './TextTool'
 import { ShapeTool } from './ShapeTool'
+import { PencilTool } from './PencilTool'
 import { ImageTool } from './ImageTool'
 import { StickyNoteTool } from './StickyNoteTool'
 import { AudioTool } from './AudioTool'
 import { Tooltip } from '@/components/ui/Tooltip'
 
-export type ToolType = 'text' | 'shape' | 'image' | 'sticky' | 'audio' | null
+export type ToolType = 'text' | 'shape' | 'pencil' | 'image' | 'sticky' | 'audio' | null
 
 interface ToolDefinition {
   type: ToolType
@@ -35,6 +36,21 @@ const TOOLS: ToolDefinition[] = [
     icon: (active) => (
       <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={active ? 2.5 : 2} d="M4 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1V5zM14 5a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1h-4a1 1 0 01-1-1V5zM4 15a1 1 0 011-1h4a1 1 0 011 1v4a1 1 0 01-1 1H5a1 1 0 01-1-1v-4z" />
+      </svg>
+    ),
+  },
+  {
+    type: 'pencil',
+    label: 'Pencil',
+    shortcut: 'P',
+    icon: (active) => (
+      <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth={active ? 2.5 : 2}
+          d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"
+        />
       </svg>
     ),
   },
@@ -116,6 +132,10 @@ export function Toolbar({ className = '', roomId }: ToolbarProps) {
         // shape (draw or tap, both handled by useCanvas.ts) so the user can
         // place several in a row — no onAddShape/auto-close here.
         return <ShapeTool />
+      case 'pencil':
+        // Same reasoning as shape: stays open across strokes instead of
+        // closing after one.
+        return <PencilTool />
       case 'image':
         return <ImageTool roomId={roomId} onAddImage={handleToolAdded} />
       case 'sticky':
