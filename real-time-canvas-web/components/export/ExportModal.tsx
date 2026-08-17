@@ -202,7 +202,7 @@ export function ExportModal({ isOpen, onClose }: ExportModalProps) {
         <div className="space-y-5 text-xs">
           {/* Format Selector Cards */}
           <div>
-            <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-400 mb-2">
+            <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-2">
               Export Format
             </label>
             <div className="grid grid-cols-3 gap-2.5">
@@ -217,14 +217,14 @@ export function ExportModal({ isOpen, onClose }: ExportModalProps) {
                     className={`flex flex-col items-center justify-center p-3 rounded-xl border text-left transition-all cursor-pointer ${
                       isSelected
                         ? 'bg-indigo-950/50 border-indigo-500/80 text-white shadow-lg shadow-indigo-950/50 ring-1 ring-indigo-500/50'
-                        : 'bg-slate-900/60 border-slate-800 text-slate-400 hover:border-slate-700 hover:bg-slate-850'
+                        : 'bg-slate-100/60 dark:bg-slate-900/60 border-slate-200 dark:border-slate-800 text-slate-600 dark:text-slate-400 hover:border-slate-300 dark:hover:border-slate-700 hover:bg-slate-850'
                     }`}
                   >
                     <span className="text-2xl mb-1">{cfg.icon}</span>
-                    <span className="font-semibold text-xs text-slate-200">
+                    <span className="font-semibold text-xs text-slate-800 dark:text-slate-200">
                       {cfg.title}
                     </span>
-                    <span className="text-[10px] text-slate-500 text-center mt-0.5">
+                    <span className="text-[10px] text-slate-500 dark:text-slate-500 text-center mt-0.5">
                       {cfg.description}
                     </span>
                   </button>
@@ -235,19 +235,19 @@ export function ExportModal({ isOpen, onClose }: ExportModalProps) {
 
           {/* Filename Input */}
           <div>
-            <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-400 mb-1.5">
+            <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-600 dark:text-slate-400 mb-1.5">
               Filename
             </label>
-            <div className="flex items-center gap-2 bg-slate-900/80 border border-slate-800 rounded-xl px-3 py-2 focus-within:border-indigo-500/80 transition-colors">
+            <div className="flex items-center gap-2 bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 focus-within:border-indigo-500/80 transition-colors">
               <input
                 type="text"
                 value={filename}
                 onChange={(e) => setFilename(e.target.value)}
                 placeholder="canvas-export"
                 disabled={isExporting}
-                className="flex-1 bg-transparent text-slate-100 text-xs outline-none placeholder:text-slate-600 font-medium"
+                className="flex-1 bg-transparent text-slate-900 dark:text-slate-100 text-xs outline-none placeholder:text-slate-400 dark:placeholder:text-slate-600 font-medium"
               />
-              <span className="text-slate-500 font-mono text-[11px] font-semibold">
+              <span className="text-slate-500 dark:text-slate-500 font-mono text-[11px] font-semibold">
                 .{format}
               </span>
             </div>
@@ -255,9 +255,9 @@ export function ExportModal({ isOpen, onClose }: ExportModalProps) {
 
           {/* Scale Slider (PNG & SVG) */}
           {format !== 'json' && (
-            <div className="bg-slate-900/40 p-3 rounded-xl border border-slate-800/80 space-y-2">
+            <div className="bg-slate-100/40 dark:bg-slate-900/40 p-3 rounded-xl border border-slate-200/80 dark:border-slate-800/80 space-y-2">
               <div className="flex justify-between items-center">
-                <label className="text-[11px] font-mono uppercase tracking-wider text-slate-400">
+                <label className="text-[11px] font-mono uppercase tracking-wider text-slate-600 dark:text-slate-400">
                   Export Scale
                 </label>
                 <span className="font-mono text-indigo-400 font-semibold">
@@ -272,9 +272,9 @@ export function ExportModal({ isOpen, onClose }: ExportModalProps) {
                 value={scale}
                 onChange={(e) => setScale(parseFloat(e.target.value))}
                 disabled={isExporting}
-                className="w-full accent-indigo-500 bg-slate-800 rounded h-1.5 cursor-pointer"
+                className="w-full accent-indigo-500 bg-slate-200 dark:bg-slate-800 rounded h-1.5 cursor-pointer"
               />
-              <div className="flex justify-between text-[10px] font-mono text-slate-500">
+              <div className="flex justify-between text-[10px] font-mono text-slate-500 dark:text-slate-500">
                 <span>0.5x</span>
                 <span>1x</span>
                 <span>2x</span>
@@ -285,9 +285,9 @@ export function ExportModal({ isOpen, onClose }: ExportModalProps) {
 
           {/* Quality Slider (PNG only) */}
           {format === 'png' && (
-            <div className="bg-slate-900/40 p-3 rounded-xl border border-slate-800/80 space-y-2">
+            <div className="bg-slate-100/40 dark:bg-slate-900/40 p-3 rounded-xl border border-slate-200/80 dark:border-slate-800/80 space-y-2">
               <div className="flex justify-between items-center">
-                <label className="text-[11px] font-mono uppercase tracking-wider text-slate-400">
+                <label className="text-[11px] font-mono uppercase tracking-wider text-slate-600 dark:text-slate-400">
                   Image Quality
                 </label>
                 <span className="font-mono text-cyan-400 font-semibold">
@@ -302,15 +302,15 @@ export function ExportModal({ isOpen, onClose }: ExportModalProps) {
                 value={quality}
                 onChange={(e) => setQuality(parseFloat(e.target.value))}
                 disabled={isExporting}
-                className="w-full accent-cyan-500 bg-slate-800 rounded h-1.5 cursor-pointer"
+                className="w-full accent-cyan-500 bg-slate-200 dark:bg-slate-800 rounded h-1.5 cursor-pointer"
               />
             </div>
           )}
 
           {/* Background Color Picker (PNG only) */}
           {format === 'png' && (
-            <div className="bg-slate-900/40 p-3 rounded-xl border border-slate-800/80 space-y-2">
-              <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-400">
+            <div className="bg-slate-100/40 dark:bg-slate-900/40 p-3 rounded-xl border border-slate-200/80 dark:border-slate-800/80 space-y-2">
+              <label className="block text-[11px] font-mono uppercase tracking-wider text-slate-600 dark:text-slate-400">
                 Background Fill
               </label>
               <div className="flex items-center gap-3">
@@ -319,14 +319,14 @@ export function ExportModal({ isOpen, onClose }: ExportModalProps) {
                   value={backgroundColor}
                   onChange={(e) => setBackgroundColor(e.target.value)}
                   disabled={isExporting}
-                  className="w-9 h-9 rounded-lg border border-slate-700 bg-slate-800 cursor-pointer overflow-hidden"
+                  className="w-9 h-9 rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-200 dark:bg-slate-800 cursor-pointer overflow-hidden"
                 />
                 <input
                   type="text"
                   value={backgroundColor}
                   onChange={(e) => setBackgroundColor(e.target.value)}
                   disabled={isExporting}
-                  className="flex-1 bg-slate-900 border border-slate-800 rounded-lg px-3 py-1.5 text-slate-200 font-mono text-xs focus:border-indigo-500/80 outline-none"
+                  className="flex-1 bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg px-3 py-1.5 text-slate-800 dark:text-slate-200 font-mono text-xs focus:border-indigo-500/80 outline-none"
                 />
               </div>
 
@@ -338,7 +338,7 @@ export function ExportModal({ isOpen, onClose }: ExportModalProps) {
                     type="button"
                     onClick={() => setBackgroundColor(c.value)}
                     disabled={isExporting}
-                    className="px-2 py-0.5 rounded border border-slate-800 bg-slate-900 text-[10px] text-slate-400 hover:text-slate-200 hover:border-slate-700 transition-colors"
+                    className="px-2 py-0.5 rounded border border-slate-200 dark:border-slate-800 bg-slate-100 dark:bg-slate-900 text-[10px] text-slate-600 dark:text-slate-400 hover:text-slate-800 dark:hover:text-slate-200 hover:border-slate-300 dark:hover:border-slate-700 transition-colors"
                   >
                     {c.label}
                   </button>
@@ -348,16 +348,16 @@ export function ExportModal({ isOpen, onClose }: ExportModalProps) {
           )}
 
           {/* Advanced Toggles */}
-          <div className="space-y-2 bg-slate-900/40 p-3 rounded-xl border border-slate-800/80">
+          <div className="space-y-2 bg-slate-100/40 dark:bg-slate-900/40 p-3 rounded-xl border border-slate-200/80 dark:border-slate-800/80">
             <label className="flex items-center gap-2.5 cursor-pointer">
               <input
                 type="checkbox"
                 checked={includeMetadata}
                 onChange={(e) => setIncludeMetadata(e.target.checked)}
                 disabled={isExporting || format === 'png'}
-                className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-0 accent-indigo-500 cursor-pointer"
+                className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 text-indigo-600 focus:ring-0 accent-indigo-500 cursor-pointer"
               />
-              <span className={`text-xs ${format === 'png' ? 'text-slate-600' : 'text-slate-300'}`}>
+              <span className={`text-xs ${format === 'png' ? 'text-slate-400 dark:text-slate-600' : 'text-slate-700 dark:text-slate-300'}`}>
                 Include metadata {format === 'png' && '(SVG & JSON only)'}
               </span>
             </label>
@@ -368,9 +368,9 @@ export function ExportModal({ isOpen, onClose }: ExportModalProps) {
                 checked={includeHistory}
                 onChange={(e) => setIncludeHistory(e.target.checked)}
                 disabled={isExporting || format !== 'json'}
-                className="w-4 h-4 rounded border-slate-700 bg-slate-900 text-indigo-600 focus:ring-0 accent-indigo-500 cursor-pointer"
+                className="w-4 h-4 rounded border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-900 text-indigo-600 focus:ring-0 accent-indigo-500 cursor-pointer"
               />
-              <span className={`text-xs ${format !== 'json' ? 'text-slate-600' : 'text-slate-300'}`}>
+              <span className={`text-xs ${format !== 'json' ? 'text-slate-400 dark:text-slate-600' : 'text-slate-700 dark:text-slate-300'}`}>
                 Include undo history {format !== 'json' && '(JSON only)'}
               </span>
             </label>
@@ -386,12 +386,12 @@ export function ExportModal({ isOpen, onClose }: ExportModalProps) {
 
           {/* Export Progress Bar */}
           {isExporting && (
-            <div className="space-y-1.5 bg-slate-900/80 p-3 rounded-xl border border-slate-800">
-              <div className="flex justify-between items-center text-[10px] font-mono text-slate-400">
+            <div className="space-y-1.5 bg-slate-100/80 dark:bg-slate-900/80 p-3 rounded-xl border border-slate-200 dark:border-slate-800">
+              <div className="flex justify-between items-center text-[10px] font-mono text-slate-600 dark:text-slate-400">
                 <span>Generating export file...</span>
                 <span>{Math.round(progress)}%</span>
               </div>
-              <div className="w-full h-1.5 bg-slate-800 rounded-full overflow-hidden">
+              <div className="w-full h-1.5 bg-slate-200 dark:bg-slate-800 rounded-full overflow-hidden">
                 <div
                   className="h-full bg-indigo-500 rounded-full transition-all duration-200"
                   style={{ width: `${progress}%` }}

@@ -9,6 +9,10 @@ import {
   IText,
   Rect,
   Circle,
+  Triangle,
+  Line,
+  Path,
+  Group,
   FabricImage,
   TPointerEvent,
 } from 'fabric'
@@ -104,6 +108,83 @@ export class WebSocketHandlers {
           })
           obj = circleObj
           break
+        }
+        case 'triangle': {
+          const triangleObj = new Triangle({
+            left: position.x,
+            top: position.y,
+            width: data.width as number || 100,
+            height: data.height as number || 100,
+            fill: data.fill as string || '#3b82f6',
+            ...data,
+          })
+          obj = triangleObj
+          break
+        }
+        case 'line': {
+          const lineObj = new Line(
+            [data.x1 as number || 0, data.y1 as number || 0, data.x2 as number || 100, data.y2 as number || 0],
+            {
+              stroke: data.stroke as string || '#2563eb',
+              strokeWidth: data.strokeWidth as number || 2,
+              ...data,
+            }
+          )
+          obj = lineObj
+          break
+        }
+        case 'path': {
+          const pathObj = new Path((data.path as any) || [], {
+            stroke: data.stroke as string || '#1a1a1a',
+            strokeWidth: data.strokeWidth as number || 3,
+            fill: (data.fill as string) ?? null,
+            left: position.x,
+            top: position.y,
+            ...data,
+          })
+          obj = pathObj
+          break
+        }
+        case 'group': {
+          // The room page's onObjectAdded precomputes this payload (see
+          // ObjectFactory.createGroup) specifically so Group.fromObject()
+          // gets each child's real Fabric type rather than this app's own
+          // shadowed type string — __memberMeta carries the app-specific
+          // id/type/metadata/createdBy to re-tag each child with once
+          // Fabric's reconstruction resolves.
+          const { __memberMeta, ...groupData } = data as { __memberMeta?: Array<{ id?: string; type?: string; metadata?: Record<string, unknown>; createdBy?: string }> } & Record<string, unknown>
+          Group.fromObject(groupData as any)
+            .then((group) => {
+              const children = group.getObjects()
+              if (Array.isArray(__memberMeta)) {
+                children.forEach((child, i) => {
+                  const meta = __memberMeta[i]
+                  if (!meta) return
+                  const c = child as any
+                  if (meta.id) c.id = meta.id
+                  if (meta.type) {
+                    Object.defineProperty(c, 'type', {
+                      value: meta.type,
+                      writable: true,
+                      configurable: true,
+                      enumerable: true,
+                    })
+                  }
+                  if (meta.createdBy) c.createdBy = meta.createdBy
+                  if (meta.metadata) c.metadata = meta.metadata
+                  c.createdAt = new Date()
+                })
+              }
+              ;(group as any).id = objectId
+              ;(group as any).createdBy = message.userId
+              ;(group as any).createdAt = new Date()
+              ;(group as any).synced = true
+              this.context.addObject(group)
+            })
+            .catch((error: Error) => {
+              console.error('[WebSocketHandlers] Failed to create group:', error)
+            })
+          return
         }
         case 'audio': {
           // Reuses the same factory AudioTool.tsx uses, so remote clients

@@ -3,13 +3,14 @@
  * Provides methods to create text, shapes, images, sticky notes, and audio objects
  */
 
-import { 
-  FabricObject, 
-  IText, 
-  Rect, 
-  Circle, 
-  Triangle, 
-  Group, 
+import {
+  FabricObject,
+  IText,
+  Rect,
+  Circle,
+  Triangle,
+  Line,
+  Group,
   FabricImage,
   TOptions,
   ITextProps,
@@ -157,6 +158,105 @@ export class ObjectFactory {
     })
 
     return attachCustomProps(triangleObj, 'triangle', { createdBy, metadata })
+  }
+
+  /**
+   * Create a straight line between two points
+   * @param points - [x1, y1, x2, y2] endpoints
+   * @param options - Line options
+   * @returns Fabric.js line with custom properties
+   */
+  static createLine(
+    points: [number, number, number, number],
+    options: WithCustomProps<FabricObjectProps> = {}
+  ): Line & CustomObjectProps {
+    const { createdBy, metadata, ...fabricOptions } = options
+
+    const lineObj = new Line(points, {
+      stroke: '#2563eb',
+      strokeWidth: 2,
+      cornerSize: 8,
+      cornerColor: '#3b82f6',
+      borderColor: '#3b82f6',
+      transparentCorners: false,
+      hasControls: true,
+      hasBorders: true,
+      ...fabricOptions,
+    })
+
+    return attachCustomProps(lineObj, 'line', { createdBy, metadata })
+  }
+
+  /**
+   * Tag an arbitrary Fabric object with this app's custom id/type/metadata —
+   * the public door into attachCustomProps for objects that don't go
+   * through one of the create* factories above (e.g. a freehand Path that
+   * Fabric's own drawing brush constructs internally).
+   */
+  static tagObject<T extends FabricObject>(
+    obj: T,
+    type: string,
+    options: { createdBy?: string; metadata?: Record<string, unknown> } = {}
+  ): T & CustomObjectProps {
+    return attachCustomProps(obj, type, options)
+  }
+
+  /**
+   * Combine already-synced objects (each already carrying its own id/type/
+   * metadata) into a single Fabric Group, for the group/ungroup feature.
+   *
+   * Also precomputes the exact payload other clients need to reconstruct
+   * this group via Group.fromObject() — attached as `__syncData` and read
+   * by the room page's onObjectAdded instead of the usual toObject() call.
+   * This exists because attachCustomProps shadows every object's `.type`
+   * with our own app-specific string (e.g. "text" for what Fabric calls
+   * "i-text"), which is exactly what lets WebSocketHandlers dispatch on our
+   * own type strings for top-level objects — but Group.fromObject() picks
+   * each *nested* child's Fabric class by reading that same `.type`, so a
+   * shadowed value there points it at a class that doesn't exist (no
+   * registered "text"/"sticky-group"/"audio" class) and silently breaks
+   * reconstruction. Serializing with each child's real Fabric type
+   * temporarily restored (native type is unshadowed by deleting the own
+   * property, which falls back to the prototype getter) avoids that, and
+   * `__memberMeta` carries the original id/type/metadata/createdBy so
+   * WebSocketHandlers can re-tag each child right after Group.fromObject()
+   * resolves them.
+   */
+  static createGroup(
+    objects: (FabricObject & Partial<CustomObjectProps>)[],
+    options: { createdBy?: string; metadata?: Record<string, unknown> } = {}
+  ): Group & CustomObjectProps {
+    const memberMeta = objects.map((obj) => ({
+      id: obj.id,
+      type: obj.type,
+      metadata: obj.metadata,
+      createdBy: obj.createdBy,
+    }))
+
+    const group = new Group(objects)
+    const tagged = attachCustomProps(group, 'group', options)
+
+    objects.forEach((obj) => {
+      if (Object.prototype.hasOwnProperty.call(obj, 'type')) {
+        delete (obj as { type?: string }).type
+      }
+    })
+    const serialized = tagged.toObject(['metadata', 'createdBy'])
+    objects.forEach((obj, i) => {
+      const meta = memberMeta[i]
+      if (meta.type) {
+        Object.defineProperty(obj, 'type', {
+          value: meta.type,
+          writable: true,
+          configurable: true,
+          enumerable: true,
+        })
+      }
+    })
+
+    ;(tagged as unknown as { __syncData: unknown }).__syncData = { ...serialized, __memberMeta: memberMeta }
+
+    return tagged
   }
 
   /**

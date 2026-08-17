@@ -38,13 +38,13 @@ export function RoomInvite({ className = '' }: RoomInviteProps) {
 
   return (
     <div
-      className={`w-80 bg-slate-950/90 border border-slate-800/90 rounded-2xl p-4 text-slate-100 shadow-2xl backdrop-blur-xl select-none transition-all ${className}`}
+      className={`w-80 bg-slate-50/90 dark:bg-slate-950/90 border border-slate-200/90 dark:border-slate-800/90 rounded-2xl p-4 text-slate-900 dark:text-slate-100 shadow-2xl backdrop-blur-xl select-none transition-all ${className}`}
     >
       {/* Header */}
-      <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-800/80">
+      <div className="flex justify-between items-center mb-3 pb-2 border-b border-slate-200/80 dark:border-slate-800/80">
         <div className="flex items-center gap-1.5">
           <span className="text-sm">🔗</span>
-          <h4 className="text-xs font-semibold tracking-wider text-slate-100 uppercase">
+          <h4 className="text-xs font-semibold tracking-wider text-slate-900 dark:text-slate-100 uppercase">
             Invite to Room
           </h4>
         </div>
@@ -76,8 +76,8 @@ export function RoomInvite({ className = '' }: RoomInviteProps) {
 
       {/* Invite Code Sub-info */}
       {currentRoom.inviteCode && (
-        <div className="mt-3 p-2 bg-slate-900/60 border border-slate-800/80 rounded-xl text-[11px] font-mono flex items-center justify-between">
-          <span className="text-slate-400">Invite Code:</span>
+        <div className="mt-3 p-2 bg-slate-100/60 dark:bg-slate-900/60 border border-slate-200/80 dark:border-slate-800/80 rounded-xl text-[11px] font-mono flex items-center justify-between">
+          <span className="text-slate-600 dark:text-slate-400">Invite Code:</span>
           <span className="text-indigo-300 font-semibold tracking-wider bg-indigo-950/50 px-2 py-0.5 rounded border border-indigo-800/40">
             {currentRoom.inviteCode}
           </span>

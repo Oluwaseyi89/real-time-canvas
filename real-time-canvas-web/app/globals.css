@@ -1,21 +1,30 @@
 @import 'tailwindcss';
 
+/*
+ * Wires Tailwind's `dark:` variant to our own [data-theme="dark"] attribute
+ * (set on <html> by the inline boot script in layout.tsx + ThemeProvider)
+ * instead of the OS-only `prefers-color-scheme` media query Tailwind uses
+ * by default — that's what lets a user's explicit light/dark choice win
+ * over their system setting.
+ */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
 @theme {
-  /* Dynamic Design System Colors */
-  --color-background: #090d16;
-  --color-foreground: #f1f5f9;
-  --color-canvas-bg: #0b0f19;
-  
-  --color-panel-bg: rgba(15, 23, 42, 0.75);
-  --color-panel-border: rgba(255, 255, 255, 0.1);
-  --color-card-bg: rgba(30, 41, 59, 0.5);
-  
+  /* Light-mode tokens (default) */
+  --color-background: #f8fafc;
+  --color-foreground: #0f172a;
+  --color-canvas-bg: #eef1f6;
+
+  --color-panel-bg: rgba(255, 255, 255, 0.78);
+  --color-panel-border: rgba(15, 23, 42, 0.08);
+  --color-card-bg: rgba(255, 255, 255, 0.6);
+
   --color-primary-indigo: #6366f1;
   --color-primary-hover: #4f46e5;
-  --color-accent-cyan: #06b6d4;
-  --color-accent-amber: #f59e0b;
-  
-  --color-border-light: rgba(255, 255, 255, 0.08);
+  --color-accent-cyan: #0891b2;
+  --color-accent-amber: #d97706;
+
+  --color-border-light: rgba(15, 23, 42, 0.08);
   --color-border-focus: rgba(99, 102, 241, 0.5);
 
   --spacing-toolbar: 4.5rem;
@@ -24,6 +33,31 @@
   --animate-pulse-slow: pulse 2.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   --animate-ping-slow: ping 3s cubic-bezier(0, 0, 0.2, 1) infinite;
   --animate-bounce-gentle: float 3s ease-in-out infinite;
+}
+
+/*
+ * Dark-mode token overrides. Always applied via the `data-theme="dark"`
+ * attribute — the inline boot script in layout.tsx sets this attribute
+ * before first paint (resolving system preference when the user hasn't
+ * picked explicitly), and ThemeProvider keeps it in sync afterward, so
+ * there's no separate `prefers-color-scheme` branch needed here.
+ */
+:root[data-theme='dark'] {
+  --color-background: #090d16;
+  --color-foreground: #f1f5f9;
+  --color-canvas-bg: #0b0f19;
+
+  --color-panel-bg: rgba(15, 23, 42, 0.75);
+  --color-panel-border: rgba(255, 255, 255, 0.1);
+  --color-card-bg: rgba(30, 41, 59, 0.5);
+
+  --color-primary-indigo: #6366f1;
+  --color-primary-hover: #4f46e5;
+  --color-accent-cyan: #06b6d4;
+  --color-accent-amber: #f59e0b;
+
+  --color-border-light: rgba(255, 255, 255, 0.08);
+  --color-border-focus: rgba(99, 102, 241, 0.5);
 }
 
 @keyframes float {
@@ -99,6 +133,7 @@
     user-select: none;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    transition: background-color 0.2s ease, color 0.2s ease;
   }
 
   /* Sleek Minimal Scrollbars */
@@ -112,11 +147,19 @@
   }
 
   ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(15, 23, 42, 0.15);
     border-radius: 9999px;
   }
 
+  :root[data-theme='dark'] ::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.15);
+  }
+
   ::-webkit-scrollbar-thumb:hover {
+    background: rgba(15, 23, 42, 0.3);
+  }
+
+  :root[data-theme='dark'] ::-webkit-scrollbar-thumb:hover {
     background: rgba(255, 255, 255, 0.3);
   }
 }
@@ -128,6 +171,10 @@
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border: 1px solid var(--color-panel-border);
+    box-shadow: 0 20px 50px rgba(15, 23, 42, 0.12), 0 0 0 1px rgba(15, 23, 42, 0.02);
+  }
+
+  :root[data-theme='dark'] .glass-panel {
     box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.05);
   }
 
@@ -140,20 +187,35 @@
   }
 
   .glass-card:hover {
-    background: rgba(30, 41, 59, 0.8);
+    background: rgba(255, 255, 255, 0.85);
     border-color: rgba(99, 102, 241, 0.4);
     transform: translateY(-2px);
+    box-shadow: 0 12px 30px -10px rgba(99, 102, 241, 0.2);
+  }
+
+  :root[data-theme='dark'] .glass-card:hover {
+    background: rgba(30, 41, 59, 0.8);
     box-shadow: 0 12px 30px -10px rgba(99, 102, 241, 0.25);
   }
 
   /* Infinite Canvas Grid Textures */
   .canvas-dot-grid {
-    background-image: radial-gradient(rgba(255, 255, 255, 0.12) 1.2px, transparent 1.2px);
+    background-image: radial-gradient(rgba(15, 23, 42, 0.12) 1.2px, transparent 1.2px);
     background-size: 24px 24px;
+  }
+
+  :root[data-theme='dark'] .canvas-dot-grid {
+    background-image: radial-gradient(rgba(255, 255, 255, 0.12) 1.2px, transparent 1.2px);
   }
 
   .canvas-line-grid {
     background-size: 40px 40px;
+    background-image:
+      linear-gradient(to right, rgba(15, 23, 42, 0.05) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(15, 23, 42, 0.05) 1px, transparent 1px);
+  }
+
+  :root[data-theme='dark'] .canvas-line-grid {
     background-image:
       linear-gradient(to right, rgba(255, 255, 255, 0.04) 1px, transparent 1px),
       linear-gradient(to bottom, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
@@ -203,7 +265,7 @@
     width: 2.6rem;
     height: 2.6rem;
     border-radius: 0.75rem;
-    color: #94a3b8;
+    color: #64748b;
     background: transparent;
     transition: all 0.2s ease;
     outline: none;
@@ -211,7 +273,16 @@
     cursor: pointer;
   }
 
+  :root[data-theme='dark'] .toolbar-button {
+    color: #94a3b8;
+  }
+
   .toolbar-button:hover {
+    color: #0f172a;
+    background-color: rgba(15, 23, 42, 0.06);
+  }
+
+  :root[data-theme='dark'] .toolbar-button:hover {
     color: #f8fafc;
     background-color: rgba(255, 255, 255, 0.08);
   }
@@ -237,14 +308,19 @@
     right: 1.5rem;
     width: 14rem;
     height: 9rem;
-    background: rgba(15, 23, 42, 0.85);
+    background: rgba(255, 255, 255, 0.85);
     backdrop-filter: blur(16px);
     -webkit-backdrop-filter: blur(16px);
     border-radius: 1rem;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+    box-shadow: 0 10px 30px rgba(15, 23, 42, 0.15);
     border: 1px solid var(--color-panel-border);
     overflow: hidden;
     z-index: 30;
+  }
+
+  :root[data-theme='dark'] .minimap-container {
+    background: rgba(15, 23, 42, 0.85);
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   }
 
   /* Radar Beacon Pulse */
