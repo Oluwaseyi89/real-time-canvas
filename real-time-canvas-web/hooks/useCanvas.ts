@@ -15,11 +15,84 @@ import {
   RectProps,
   CircleProps,
   ImageProps,
+  Rect,
+  Circle,
+  Triangle,
 } from 'fabric'
 import { useCanvasStore } from '@/store/canvasStore'
+import { useDrawingStore, DrawableShapeType } from '@/store/drawingStore'
 import { initializeCanvas, disposeCanvas, ZOOM_CONFIG } from '@/lib/canvas/fabricConfig'
 import { CanvasRenderer, createRenderer } from '@/lib/canvas/renderer'
 import { ObjectFactory, CanvasObject, WithCustomProps } from '@/lib/canvas/objectFactory'
+
+/** Live drag-preview outline shown while drawing a shape — never touches
+ * the store/broadcast pipeline (no id/type custom props), purely visual. */
+function createShapePreview(type: DrawableShapeType, x: number, y: number, fill: string, stroke: string): FabricObject {
+  const common = {
+    left: x,
+    top: y,
+    fill: hexToRgba(fill, 0.25),
+    stroke,
+    strokeWidth: 2,
+    strokeDashArray: [6, 4],
+    selectable: false,
+    evented: false,
+    objectCaching: false,
+  }
+  switch (type) {
+    case 'circle':
+      return new Circle({ ...common, radius: 0 })
+    case 'triangle':
+      return new Triangle({ ...common, width: 0, height: 0 })
+    default:
+      return new Rect({ ...common, width: 0, height: 0 })
+  }
+}
+
+function updateShapePreview(preview: FabricObject, type: DrawableShapeType, x1: number, y1: number, x2: number, y2: number) {
+  const left = Math.min(x1, x2)
+  const top = Math.min(y1, y2)
+  const width = Math.abs(x2 - x1)
+  const height = Math.abs(y2 - y1)
+  if (type === 'circle') {
+    preview.set({ left, top, radius: Math.max(width, height) / 2 })
+  } else {
+    preview.set({ left, top, width, height })
+  }
+  preview.setCoords()
+}
+
+function hexToRgba(hex: string, alpha: number): string {
+  const match = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex)
+  if (!match) return hex
+  const [, r, g, b] = match
+  return `rgba(${parseInt(r, 16)}, ${parseInt(g, 16)}, ${parseInt(b, 16)}, ${alpha})`
+}
+
+/** Final left/top/width-height (or radius, for circles) for a drawn shape.
+ * A real drag uses its own bounds; a plain tap falls back to the same
+ * default size the old "Add Shape" button always placed, centered on the
+ * tap point instead of a fixed canvas position. */
+function computeShapeOptions(type: DrawableShapeType, x1: number, y1: number, x2: number, y2: number, isDrag: boolean) {
+  if (!isDrag) {
+    if (type === 'circle') {
+      const radius = 50
+      return { left: x1 - radius, top: y1 - radius, radius }
+    }
+    const width = 100
+    const height = 100
+    return { left: x1 - width / 2, top: y1 - height / 2, width, height }
+  }
+
+  const left = Math.min(x1, x2)
+  const top = Math.min(y1, y2)
+  const width = Math.abs(x2 - x1)
+  const height = Math.abs(y2 - y1)
+  if (type === 'circle') {
+    return { left, top, radius: Math.max(width, height) / 2 }
+  }
+  return { left, top, width, height }
+}
 
 // Event payload types for Fabric v6 canvas events
 interface FabricSelectionEvent {
@@ -150,8 +223,28 @@ export function useCanvas(options: UseCanvasOptions = {}) {
     let lastPosX = 0
     let lastPosY = 0
 
-    fabricCanvas.on('mouse:down', (opt: { e: TPointerEvent }) => {
+    // Shape drawing: click-drag on empty canvas while a shape type is
+    // selected in the Shape tool panel (drawingStore, set by ShapeTool)
+    // draws that shape live instead of the default selection box. A plain
+    // click (no real drag) falls back to a default-sized shape centered on
+    // the click, same as the tool's own "Add Shape" button.
+    let shapeDraft: { type: DrawableShapeType; startX: number; startY: number; preview: FabricObject } | null = null
+    const DRAW_CLICK_THRESHOLD = 6
+
+    fabricCanvas.on('mouse:down', (opt: { e: TPointerEvent; target?: FabricObject }) => {
       const e = opt.e as MouseEvent
+      const drawType = useDrawingStore.getState().drawingShapeType
+
+      if (drawType && e.button === 0 && !opt.target) {
+        const pointer = fabricCanvas.getScenePoint(e)
+        const { shapeFillColor, shapeStrokeColor } = useDrawingStore.getState()
+        const preview = createShapePreview(drawType, pointer.x, pointer.y, shapeFillColor, shapeStrokeColor)
+        fabricCanvas.add(preview)
+        fabricCanvas.selection = false
+        shapeDraft = { type: drawType, startX: pointer.x, startY: pointer.y, preview }
+        return
+      }
+
       if (e.button === 1 || e.button === 2) {
         isDragging = true
         const pointer = fabricCanvas.getScenePoint(e)
@@ -163,8 +256,16 @@ export function useCanvas(options: UseCanvasOptions = {}) {
     })
 
     fabricCanvas.on('mouse:move', (opt: { e: TPointerEvent }) => {
+      const e = opt.e as MouseEvent
+
+      if (shapeDraft) {
+        const pointer = fabricCanvas.getScenePoint(e)
+        updateShapePreview(shapeDraft.preview, shapeDraft.type, shapeDraft.startX, shapeDraft.startY, pointer.x, pointer.y)
+        fabricCanvas.requestRenderAll()
+        return
+      }
+
       if (isDragging) {
-        const e = opt.e as MouseEvent
         const pointer = fabricCanvas.getScenePoint(e)
         const dx = pointer.x - lastPosX
         const dy = pointer.y - lastPosY
@@ -183,7 +284,36 @@ export function useCanvas(options: UseCanvasOptions = {}) {
       }
     })
 
-    fabricCanvas.on('mouse:up', () => {
+    fabricCanvas.on('mouse:up', (opt: { e: TPointerEvent }) => {
+      if (shapeDraft) {
+        const { type, startX, startY, preview } = shapeDraft
+        shapeDraft = null
+        fabricCanvas.remove(preview)
+        fabricCanvas.selection = true
+
+        const e = opt.e as MouseEvent
+        const pointer = fabricCanvas.getScenePoint(e)
+        const dx = Math.abs(pointer.x - startX)
+        const dy = Math.abs(pointer.y - startY)
+        const isDrag = dx > DRAW_CLICK_THRESHOLD || dy > DRAW_CLICK_THRESHOLD
+        const { shapeFillColor, shapeStrokeColor } = useDrawingStore.getState()
+
+        const renderer = useCanvasStore.getState().renderer
+        if (renderer) {
+          const shapeOptions = computeShapeOptions(type, startX, startY, pointer.x, pointer.y, isDrag)
+          const factoryOptions = { ...shapeOptions, fill: shapeFillColor, stroke: shapeStrokeColor }
+          const obj =
+            type === 'circle'
+              ? ObjectFactory.createCircle(factoryOptions)
+              : type === 'triangle'
+                ? ObjectFactory.createTriangle(factoryOptions)
+                : ObjectFactory.createRectangle(factoryOptions)
+          renderer.addObject(obj, obj.id)
+          useCanvasStore.getState().addObject(obj)
+        }
+        return
+      }
+
       if (isDragging) {
         isDragging = false
         fabricCanvas.selection = true

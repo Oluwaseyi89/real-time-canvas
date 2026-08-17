@@ -15,6 +15,7 @@ import { JoinRoomDialog } from '@/components/room/JoinRoomDialog'
 import { CreateRoomDialog } from '@/components/room/CreateRoomDialog'
 import { Button } from '@/components/ui/Button'
 import { LoadingSpinner } from '@/components/ui/LoadingSpinner'
+import { ThemeToggle } from '@/components/ui/ThemeToggle'
 
 export default function CanvasPage() {
   const router = useRouter()
@@ -86,7 +87,7 @@ export default function CanvasPage() {
   if (!authChecked || !isAuthenticated) {
     return (
       <div className="relative flex items-center justify-center min-h-screen w-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100">
-        <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] opacity-40 pointer-events-none z-0" />
+        <div className="canvas-dot-grid absolute inset-0 opacity-60 pointer-events-none z-0" />
         <LoadingSpinner size="md" color="indigo" className="relative z-10" />
       </div>
     )
@@ -95,7 +96,7 @@ export default function CanvasPage() {
   return (
     <div className="relative min-h-screen w-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans select-none overflow-x-hidden flex flex-col">
       {/* Dynamic Ambient Grid Background */}
-      <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] opacity-40 pointer-events-none z-0" />
+      <div className="canvas-dot-grid absolute inset-0 opacity-60 pointer-events-none z-0" />
 
       {/* TOP GLASS NAVIGATION HEADER */}
       <header className="relative z-10 w-full border-b border-slate-200/80 dark:border-slate-800/80 bg-slate-50/80 dark:bg-slate-950/80 backdrop-blur-2xl px-4 sm:px-6 py-4 flex items-center justify-between">
@@ -125,6 +126,8 @@ export default function CanvasPage() {
               </span>
             )}
           </div>
+
+          <ThemeToggle className="p-2 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-100 dark:hover:bg-slate-900 border border-transparent hover:border-slate-200 dark:hover:border-slate-800 transition-colors cursor-pointer flex items-center justify-center" />
 
           <button
             onClick={logout}

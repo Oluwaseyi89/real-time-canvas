@@ -1,6 +1,5 @@
 export type DockPanelId =
   | 'tools'
-  | 'radar'
   | 'zoom'
   | 'timeTravel'
   | 'physics'

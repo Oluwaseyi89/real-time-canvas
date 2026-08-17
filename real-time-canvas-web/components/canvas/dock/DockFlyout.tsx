@@ -3,9 +3,11 @@
 /**
  * Positions whichever dock panel is currently open, and lets the user
  * relocate it anywhere on screen by dragging its grip handle — useful when
- * the default spot (next to the dock) sits over the part of the canvas
- * they're working on. Closes on: re-clicking its rail icon (handled by the
- * dock itself), the panel's own close button, outside-click, or Escape.
+ * the default spot (next to the dock, or wherever cornerClassName puts it)
+ * sits over the part of the canvas they're working on. Closes on:
+ * re-clicking its rail icon (handled by the dock itself), the panel's own
+ * close button, and — unless disabled via props, for panels meant to stay
+ * open as persistent monitors — outside-click or Escape.
  */
 
 import { useCallback, useEffect, useRef, useState } from 'react'
@@ -14,22 +16,39 @@ interface DockFlyoutProps {
   isOpen: boolean
   onClose: () => void
   children: React.ReactNode
+  /**
+   * Tailwind position classes for where this panel starts before it's ever
+   * been dragged (e.g. "left-24 top-4" to sit beside the left dock, or
+   * "bottom-4 right-4" to dock to that corner). Defaults to the classic
+   * spot next to the left dock.
+   */
+  cornerClassName?: string
+  /** Set false for panels meant to stay open regardless of other clicks. */
+  closeOnOutsideClick?: boolean
+  /** Set false for panels meant to stay open regardless of other clicks. */
+  closeOnEscape?: boolean
 }
 
-// Roughly where the old anchorClassName="left-24 top-4" used to place every
-// panel (6rem/1rem in pixels) — kept as the starting point each time a
-// panel opens; dragging only moves it for the current session.
-const DEFAULT_POSITION = { x: 96, y: 16 }
+const DEFAULT_CORNER_CLASSNAME = 'left-24 top-4'
 const EDGE_MARGIN = 8
 
-export function DockFlyout({ isOpen, onClose, children }: DockFlyoutProps) {
+export function DockFlyout({
+  isOpen,
+  onClose,
+  children,
+  cornerClassName = DEFAULT_CORNER_CLASSNAME,
+  closeOnOutsideClick = true,
+  closeOnEscape = true,
+}: DockFlyoutProps) {
   const panelRef = useRef<HTMLDivElement>(null)
-  const [position, setPosition] = useState(DEFAULT_POSITION)
+  // null = not yet dragged this time it's open; render via cornerClassName.
+  // Once dragged, explicit pixel coordinates take over.
+  const [dragPosition, setDragPosition] = useState<{ x: number; y: number } | null>(null)
   const [isDragging, setIsDragging] = useState(false)
   const dragOriginRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null)
 
   useEffect(() => {
-    if (isOpen) setPosition(DEFAULT_POSITION)
+    if (isOpen) setDragPosition(null)
   }, [isOpen])
 
   const clampPosition = useCallback((x: number, y: number) => {
@@ -54,17 +73,21 @@ export function DockFlyout({ isOpen, onClose, children }: DockFlyoutProps) {
     (e: React.PointerEvent<HTMLButtonElement>) => {
       e.preventDefault()
       e.currentTarget.setPointerCapture(e.pointerId)
-      dragOriginRef.current = { startX: e.clientX, startY: e.clientY, originX: position.x, originY: position.y }
+      // First drag from the corner-class default: seed the origin from
+      // where the panel is actually rendered right now, since dragPosition
+      // itself is still null at this point.
+      const origin = dragPosition ?? panelRef.current?.getBoundingClientRect() ?? { x: 0, y: 0 }
+      dragOriginRef.current = { startX: e.clientX, startY: e.clientY, originX: origin.x, originY: origin.y }
       setIsDragging(true)
     },
-    [position]
+    [dragPosition]
   )
 
   const handleGripPointerMove = useCallback(
     (e: React.PointerEvent<HTMLButtonElement>) => {
       const origin = dragOriginRef.current
       if (!origin) return
-      setPosition(clampPosition(origin.originX + (e.clientX - origin.startX), origin.originY + (e.clientY - origin.startY)))
+      setDragPosition(clampPosition(origin.originX + (e.clientX - origin.startX), origin.originY + (e.clientY - origin.startY)))
     },
     [clampPosition]
   )
@@ -78,9 +101,10 @@ export function DockFlyout({ isOpen, onClose, children }: DockFlyoutProps) {
   }, [])
 
   useEffect(() => {
-    if (!isOpen) return
+    if (!isOpen || (!closeOnOutsideClick && !closeOnEscape)) return
 
     const handlePointerDown = (e: PointerEvent) => {
+      if (!closeOnOutsideClick) return
       const target = e.target as HTMLElement
       // Clicks on the dock rail itself (including re-clicking the button
       // that opened this panel) are handled by the dock's own onClick
@@ -92,7 +116,7 @@ export function DockFlyout({ isOpen, onClose, children }: DockFlyoutProps) {
       }
     }
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose()
+      if (closeOnEscape && e.key === 'Escape') onClose()
     }
 
     document.addEventListener('pointerdown', handlePointerDown)
@@ -101,15 +125,15 @@ export function DockFlyout({ isOpen, onClose, children }: DockFlyoutProps) {
       document.removeEventListener('pointerdown', handlePointerDown)
       window.removeEventListener('keydown', handleKeyDown)
     }
-  }, [isOpen, onClose])
+  }, [isOpen, onClose, closeOnOutsideClick, closeOnEscape])
 
   if (!isOpen) return null
 
   return (
     <div
       ref={panelRef}
-      style={{ left: position.x, top: position.y }}
-      className={`fixed z-40 flex flex-col gap-1.5 ${isDragging ? '' : 'animate-slide-in-right'}`}
+      style={dragPosition ? { left: dragPosition.x, top: dragPosition.y } : undefined}
+      className={`fixed z-40 flex flex-col gap-1.5 ${dragPosition ? '' : cornerClassName} ${isDragging ? '' : 'animate-slide-in-right'}`}
     >
       {/* Grip (drag anywhere on screen) + close — floats above the panel's
           own content so it works the same regardless of what that content

@@ -112,7 +112,10 @@ export function Toolbar({ className = '', roomId }: ToolbarProps) {
       case 'text':
         return <TextTool onAddText={handleToolAdded} />
       case 'shape':
-        return <ShapeTool onAddShape={handleToolAdded} />
+        // Unlike the other tools, the shape tool stays open after placing a
+        // shape (draw or tap, both handled by useCanvas.ts) so the user can
+        // place several in a row — no onAddShape/auto-close here.
+        return <ShapeTool />
       case 'image':
         return <ImageTool roomId={roomId} onAddImage={handleToolAdded} />
       case 'sticky':

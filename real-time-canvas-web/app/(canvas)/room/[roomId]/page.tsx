@@ -31,6 +31,8 @@ import { TimeTravelControls } from '@/components/canvas/TimeTravelControls'
 import { Minimap } from '@/components/canvas/minimap/Minimap'
 import { Dock } from '@/components/canvas/dock/Dock'
 import { DockFlyout } from '@/components/canvas/dock/DockFlyout'
+import { ColorPalette } from '@/components/canvas/dock/ColorPalette'
+import { Tooltip } from '@/components/ui/Tooltip'
 import type { DockPanelId } from '@/components/canvas/dock/types'
 import { updateCanvasBackgroundForTheme } from '@/lib/canvas/fabricConfig'
 import { useTheme } from '@/lib/theme/ThemeProvider'
@@ -64,10 +66,11 @@ export default function CanvasRoomPage() {
 
   // Control State
   const [isReady, setIsReady] = useState(false)
-  // Every feature panel (tools, radar, zoom, time travel, physics,
-  // presence, room info, invite, diagnostics) is docked/collapsed by
-  // default and only floats open when the user picks its icon in the
-  // Dock — at most one at a time, so a single id is enough state.
+  // Every feature panel (tools, zoom, time travel, physics, presence, room
+  // info, invite, diagnostics) is docked/collapsed by default and only
+  // floats open when the user picks its icon in the Dock — at most one at a
+  // time, so a single id is enough state. Radar is deliberately NOT part of
+  // this group — see isRadarOpen below.
   const [activeDockPanel, setActiveDockPanel] = useState<DockPanelId | null>(null)
   const [isExportModalOpen, setIsExportModalOpen] = useState(false)
 
@@ -76,18 +79,24 @@ export default function CanvasRoomPage() {
     setActiveDockPanel((prev) => (prev === id ? null : id))
   }, [])
 
+  // Radar (minimap) stays visible for continuous monitoring while any other
+  // panel opens/closes, so it's tracked independently rather than through
+  // activeDockPanel — defaults to open, docked bottom-right.
+  const [isRadarOpen, setIsRadarOpen] = useState(true)
+  const toggleRadar = useCallback(() => setIsRadarOpen((prev) => !prev), [])
+
   // Minimap's own render loop (useMinimap, called both here and inside
-  // <Minimap/>) gates on this store flag — keep it in sync with whether
-  // the Radar dock panel is actually mounted, so it does no rendering work
-  // while docked/closed. A plain useEffect (rather than setting this from
-  // inside the setActiveDockPanel updater above) keeps that updater pure —
-  // React re-invokes updater functions outside of committing an update
-  // (e.g. Strict Mode's double-invoke check), and a store write inside one
-  // triggered "Cannot update a component while rendering a different
-  // component" and left the dock panel state visibly inconsistent.
+  // <Minimap/>) gates on this store flag — keep it in sync with whether the
+  // radar panel is actually mounted, so it does no rendering work while
+  // hidden.
   useEffect(() => {
-    useMinimapStore.getState().setVisible(activeDockPanel === 'radar')
-  }, [activeDockPanel])
+    useMinimapStore.getState().setVisible(isRadarOpen)
+  }, [isRadarOpen])
+
+  // Color palette (fill/outline for the shape tool) — its own right-edge
+  // dock, independent of the left-side single-panel group.
+  const [isPaletteOpen, setIsPaletteOpen] = useState(false)
+  const togglePalette = useCallback(() => setIsPaletteOpen((prev) => !prev), [])
 
   const canvasElementRef = useRef<HTMLCanvasElement | null>(null)
   const lastCursorPos = useRef<{ x: number; y: number } | null>(null)
@@ -933,15 +942,62 @@ export default function CanvasRoomPage() {
         isConnected={isConnected}
         physicsEnabled={physicsEnabled}
         userCount={userCount}
+        isRadarOpen={isRadarOpen}
+        onToggleRadar={toggleRadar}
       />
+
+      {/* Radar: independent of the single-panel flyout below — stays open
+          for monitoring while any other panel is in use, default-docked to
+          the bottom-right corner rather than beside the dock. */}
+      <DockFlyout
+        isOpen={isRadarOpen}
+        onClose={toggleRadar}
+        cornerClassName="bottom-4 right-4"
+        closeOnOutsideClick={false}
+        closeOnEscape={false}
+      >
+        <Minimap />
+      </DockFlyout>
+
+      {/* Color palette: a single-icon dock on the right edge (mirroring the
+          left dock), for the shape tool's fill/outline colors. */}
+      <Tooltip label={isPaletteOpen ? 'Hide colors' : 'Show colors'} side="right">
+        <button
+          type="button"
+          data-dock-root
+          onClick={togglePalette}
+          className={`fixed right-4 top-1/2 -translate-y-1/2 z-40 p-2.5 rounded-2xl shadow-2xl border backdrop-blur-xl transition-all active:scale-95 flex items-center justify-center ${
+            isPaletteOpen
+              ? 'bg-indigo-600 text-white border-indigo-500/60 shadow-indigo-600/40'
+              : 'glass-panel text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 border-slate-300/60 dark:border-slate-700/60'
+          }`}
+          aria-label={isPaletteOpen ? 'Hide colors' : 'Show colors'}
+          aria-pressed={isPaletteOpen}
+        >
+          <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M7 21a4 4 0 01-4-4V5a2 2 0 012-2h4a2 2 0 012 2v12a4 4 0 01-4 4zm0 0h10a2 2 0 002-2v-4a2 2 0 00-2-2h-2.5M7 9h.01"
+            />
+          </svg>
+        </button>
+      </Tooltip>
+
+      <DockFlyout
+        isOpen={isPaletteOpen}
+        onClose={togglePalette}
+        cornerClassName="right-20 top-4"
+      >
+        <ColorPalette />
+      </DockFlyout>
 
       <DockFlyout
         isOpen={activeDockPanel !== null}
         onClose={closeDockPanel}
       >
         {activeDockPanel === 'tools' && <Toolbar roomId={roomId} />}
-
-        {activeDockPanel === 'radar' && <Minimap />}
 
         {activeDockPanel === 'zoom' && (
           <ZoomControls

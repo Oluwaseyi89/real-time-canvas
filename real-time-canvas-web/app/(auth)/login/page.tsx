@@ -10,6 +10,7 @@ import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { Input } from '@/components/ui/Input'
 import { Button } from '@/components/ui/Button'
+import { ThemeToggle } from '@/components/ui/ThemeToggle'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -66,7 +67,11 @@ export default function LoginPage() {
   return (
     <div className="relative flex flex-col items-center justify-center min-h-screen w-screen bg-slate-50 dark:bg-slate-950 text-slate-900 dark:text-slate-100 font-sans select-none overflow-hidden p-4 sm:p-6">
       {/* Background Mesh Grid */}
-      <div className="absolute inset-0 bg-[radial-gradient(#1e293b_1px,transparent_1px)] [background-size:24px_24px] opacity-40 pointer-events-none z-0" />
+      <div className="canvas-dot-grid absolute inset-0 opacity-60 pointer-events-none z-0" />
+
+      <div className="fixed top-4 right-4 z-20">
+        <ThemeToggle className="p-2.5 rounded-xl bg-slate-100/80 dark:bg-slate-900/80 border border-slate-200/80 dark:border-slate-800/80 text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200 dark:hover:bg-slate-800 shadow-lg backdrop-blur-xl transition-all flex items-center justify-center active:scale-95" />
+      </div>
 
       {/* Main Glassmorphic Login Card */}
       <div className="relative z-10 w-full max-w-sm sm:max-w-md bg-slate-50/90 dark:bg-slate-950/90 border border-slate-200/90 dark:border-slate-800/90 rounded-2xl sm:rounded-3xl p-6 sm:p-8 shadow-2xl backdrop-blur-2xl">

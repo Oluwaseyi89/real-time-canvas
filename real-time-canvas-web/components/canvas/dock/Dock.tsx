@@ -9,7 +9,7 @@
  */
 
 import { Tooltip } from '@/components/ui/Tooltip'
-import { useTheme } from '@/lib/theme/ThemeProvider'
+import { ThemeToggle } from '@/components/ui/ThemeToggle'
 import type { DockPanelId } from './types'
 
 interface DockItem {
@@ -24,18 +24,12 @@ const TOP_ITEMS: DockItem[] = [
   {
     id: 'tools',
     label: 'Tools',
+    // A pencil reads as "drawing/editing tools" on first sight — the
+    // previous icon (a stick figure + wrench-like flourish) didn't map to
+    // anything a new user would recognize.
     icon: (
       <svg className={ICON_CLASS} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 4a4 4 0 100 8 4 4 0 000-8zM3 20c0-3.314 3.582-6 8-6s8 2.686 8 6M16 8l4-4m0 0l-2.5 2.5M20 4l-2.5 2.5" />
-      </svg>
-    ),
-  },
-  {
-    id: 'radar',
-    label: 'Radar',
-    icon: (
-      <svg className={ICON_CLASS} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l5.447 2.724A1 1 0 0021 18.782V8.018a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
       </svg>
     ),
   },
@@ -114,6 +108,12 @@ interface DockProps {
   isConnected: boolean
   physicsEnabled: boolean
   userCount: number
+  // Radar (the minimap) is intentionally NOT part of the single-panel
+  // activePanel group above — it stays visible while any other panel is
+  // open, for continuous monitoring, so it needs its own independent
+  // open/close state and toggle here.
+  isRadarOpen: boolean
+  onToggleRadar: () => void
   className?: string
 }
 
@@ -124,10 +124,10 @@ export function Dock({
   isConnected,
   physicsEnabled,
   userCount,
+  isRadarOpen,
+  onToggleRadar,
   className = '',
 }: DockProps) {
-  const { theme, toggleTheme } = useTheme()
-
   const renderButton = (item: DockItem, badge?: React.ReactNode) => {
     const isActive = activePanel === item.id
     return (
@@ -157,7 +157,32 @@ export function Dock({
       role="toolbar"
       aria-label="Feature dock"
     >
-      {TOP_ITEMS.map((item) =>
+      {TOP_ITEMS.slice(0, 1).map((item) => renderButton(item))}
+
+      {/* Radar: independent of the single-panel group above, since it stays
+          open for monitoring while other panels come and go. */}
+      <Tooltip label={isRadarOpen ? 'Hide radar' : 'Show radar'} side="right">
+        <button
+          type="button"
+          onClick={onToggleRadar}
+          className={`relative p-2.5 rounded-xl transition-all flex items-center justify-center active:scale-95 ${
+            isRadarOpen
+              ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-600/40'
+              : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-800/60'
+          }`}
+          aria-label={isRadarOpen ? 'Hide radar' : 'Show radar'}
+          aria-pressed={isRadarOpen}
+        >
+          {/* Mini-view-in-a-view — reads as "overview map" more directly
+              than the previous folded-paper map icon did. */}
+          <svg className={ICON_CLASS} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <rect x="3" y="4" width="18" height="14" rx="2" strokeWidth={2} />
+            <rect x="12" y="10" width="7" height="6" rx="1" fill="currentColor" stroke="none" />
+          </svg>
+        </button>
+      </Tooltip>
+
+      {TOP_ITEMS.slice(1).map((item) =>
         renderButton(
           item,
           item.id === 'physics' && physicsEnabled ? (
@@ -201,23 +226,8 @@ export function Dock({
 
       <div className="w-6 h-[1px] bg-slate-300/70 dark:bg-slate-800/80 my-0.5" role="separator" />
 
-      <Tooltip label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'} side="right">
-        <button
-          type="button"
-          onClick={toggleTheme}
-          className="p-2.5 rounded-xl text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-all flex items-center justify-center active:scale-95"
-          aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
-        >
-          {theme === 'dark' ? (
-            <svg className={ICON_CLASS} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z" />
-            </svg>
-          ) : (
-            <svg className={ICON_CLASS} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z" />
-            </svg>
-          )}
-        </button>
+      <Tooltip label="Toggle theme" side="right">
+        <ThemeToggle />
       </Tooltip>
     </div>
   )
