@@ -938,7 +938,6 @@ export default function CanvasRoomPage() {
       <DockFlyout
         isOpen={activeDockPanel !== null}
         onClose={closeDockPanel}
-        anchorClassName="left-24 top-4"
       >
         {activeDockPanel === 'tools' && <Toolbar roomId={roomId} />}
 
