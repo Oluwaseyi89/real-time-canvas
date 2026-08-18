@@ -202,9 +202,21 @@ export function useCanvas(options: UseCanvasOptions = {}) {
    * Set up canvas event listeners
    */
   const setupCanvasEvents = useCallback((fabricCanvas: Canvas) => {
+    // Rotate handle: hidden by default. A stray drag on a resize handle just
+    // resizes, easily undone; a stray drag on the rotate handle spins the
+    // object off-angle and is a much easier accidental gesture to trigger
+    // right next to the top-center resize handle. Keeping it hidden until
+    // the user deliberately double-clicks the object makes rotation an
+    // opt-in action instead of something that can happen by accident on
+    // every selection.
+    const setRotateHandleVisible = (obj: FabricObject | null | undefined, visible: boolean) => {
+      obj?.setControlsVisibility({ mtr: visible })
+    }
+
     // Object added event
     fabricCanvas.on('object:added', (e: FabricObjectEvent) => {
       if (e.target) {
+        setRotateHandleVisible(e.target, false)
         optionsRef.current.onObjectAdded?.(e.target)
       }
     })
@@ -228,11 +240,25 @@ export function useCanvas(options: UseCanvasOptions = {}) {
       optionsRef.current.onObjectAdded?.(tagged)
     })
 
-    // Object selected event
-    fabricCanvas.on('selection:created', (e: FabricSelectionEvent) => {
+    // Object selected event — also resets the rotate handle to hidden on
+    // every fresh selection, so a double-click's reveal (below) doesn't
+    // stick around the next time this or another object gets selected.
+    const handleSelection = (e: FabricSelectionEvent) => {
+      e.selected?.forEach((obj) => setRotateHandleVisible(obj, false))
       if (e.selected && e.selected.length > 0) {
         optionsRef.current.onObjectSelected?.(e.selected[0])
       }
+    }
+    fabricCanvas.on('selection:created', handleSelection)
+    fabricCanvas.on('selection:updated', handleSelection)
+
+    // Double-click an object to reveal its rotate handle — the deliberate
+    // gesture that opts back into rotation (see setRotateHandleVisible
+    // above for why it's hidden by default).
+    fabricCanvas.on('mouse:dblclick', (opt: { target?: FabricObject }) => {
+      if (!opt.target) return
+      setRotateHandleVisible(opt.target, true)
+      fabricCanvas.requestRenderAll()
     })
 
     // Object modified event using native Fabric v6 ModifiedEvent type
