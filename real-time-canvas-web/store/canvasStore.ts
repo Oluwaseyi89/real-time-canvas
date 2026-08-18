@@ -165,6 +165,16 @@ export const useCanvasStore = create<CanvasState>((set, get) => ({
 
     if (canvas && obj) {
       obj.set(props as any)
+      // Fabric's Line serializes x1/y1/x2/y2 relative to its own center
+      // (see lib/websocket/handlers.ts's handleObjectUpdate for the full
+      // explanation) — re-applying them via the generic .set() above can
+      // recenter the line and silently undo the left/top this same call
+      // just set. Re-asserting them last is a no-op for every other object
+      // type and keeps lines anchored where the update actually placed them.
+      const { left, top } = props as { left?: number; top?: number }
+      if (typeof left === 'number') obj.set('left', left)
+      if (typeof top === 'number') obj.set('top', top)
+      obj.setCoords()
       canvas.renderAll()
     }
 

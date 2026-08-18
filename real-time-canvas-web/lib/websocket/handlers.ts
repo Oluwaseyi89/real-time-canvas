@@ -259,6 +259,19 @@ export class WebSocketHandlers {
 
     try {
       obj.set(updates as Partial<FabricObject>)
+      // Line.toObject() serializes x1/y1/x2/y2 as coordinates local to the
+      // line's own center (via calcLinePoints()), not absolute scene
+      // coordinates — and since they come after left/top in the payload's
+      // key order, applying them through the generic .set() above re-enters
+      // Line's internal _set() override, which recomputes width/height and
+      // recenters the object via setPositionByOrigin, silently overwriting
+      // the correct left/top this same .set() call just applied. Every
+      // moved line was snapping back to ~(0,0) on its own broadcast echo
+      // because of this. Re-asserting left/top afterward is a no-op for
+      // every other object type and restores the real position for lines.
+      const { left, top } = updates as { left?: number; top?: number }
+      if (typeof left === 'number') obj.set('left', left)
+      if (typeof top === 'number') obj.set('top', top)
       obj.setCoords()
       this.context.canvas.requestRenderAll()
     } catch (error) {

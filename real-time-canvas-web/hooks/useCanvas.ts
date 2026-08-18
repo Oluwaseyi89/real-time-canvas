@@ -64,7 +64,22 @@ function createShapePreview(type: DrawableShapeType, x: number, y: number, fill:
 
 function updateShapePreview(preview: FabricObject, type: DrawableShapeType, x1: number, y1: number, x2: number, y2: number) {
   if (type === 'line') {
-    ;(preview as Line).set({ x1, y1, x2, y2 })
+    // Fabric's Line renders using width/height/left/top, which are only
+    // computed once at construction time — setting x1/y1/x2/y2 alone leaves
+    // those stale, so the line visually stays anchored at its starting
+    // (zero-size) bounds no matter how far the pointer moves. Recomputing
+    // them alongside the coordinates is what actually makes the preview
+    // track the drag.
+    ;(preview as Line).set({
+      x1,
+      y1,
+      x2,
+      y2,
+      left: Math.min(x1, x2),
+      top: Math.min(y1, y2),
+      width: Math.abs(x2 - x1),
+      height: Math.abs(y2 - y1),
+    })
     preview.setCoords()
     return
   }
@@ -235,24 +250,45 @@ export function useCanvas(options: UseCanvasOptions = {}) {
       }
     })
 
-    // Mouse wheel zoom handling
+    // Mouse wheel: plain scroll pans the canvas (matches every other
+    // infinite-canvas app — Figma, Miro, etc.), Ctrl/Cmd+wheel zooms. This
+    // also covers trackpad pinch-to-zoom, which browsers report as a wheel
+    // event with ctrlKey set to true rather than as its own gesture.
     fabricCanvas.on('mouse:wheel', (opt: { e: WheelEvent }) => {
       const e = opt.e
-      const delta = e.deltaY
-      const currentZoom = fabricCanvas.getZoom()
 
-      let newZoom = currentZoom - delta * ZOOM_CONFIG.wheelZoomSpeed
-      newZoom = Math.min(Math.max(newZoom, ZOOM_CONFIG.minZoom), ZOOM_CONFIG.maxZoom)
+      if (e.ctrlKey || e.metaKey) {
+        const delta = e.deltaY
+        const currentZoom = fabricCanvas.getZoom()
 
-      const pointer = fabricCanvas.getScenePoint(e)
+        let newZoom = currentZoom - delta * ZOOM_CONFIG.wheelZoomSpeed
+        newZoom = Math.min(Math.max(newZoom, ZOOM_CONFIG.minZoom), ZOOM_CONFIG.maxZoom)
 
-      fabricCanvas.zoomToPoint(
-        new Point(pointer.x, pointer.y),
-        newZoom
-      )
+        const pointer = fabricCanvas.getScenePoint(e)
 
-      setZoom(newZoom)
-      optionsRef.current.onZoomChange?.(newZoom)
+        fabricCanvas.zoomToPoint(
+          new Point(pointer.x, pointer.y),
+          newZoom
+        )
+
+        setZoom(newZoom)
+        optionsRef.current.onZoomChange?.(newZoom)
+      } else {
+        // Shift+wheel lets a plain vertical mouse wheel scroll horizontally
+        // (standard browser convention); trackpads already report deltaX
+        // directly for two-finger horizontal scroll.
+        const dx = e.shiftKey && e.deltaX === 0 ? e.deltaY : e.deltaX
+        const dy = e.shiftKey && e.deltaX === 0 ? 0 : e.deltaY
+
+        const vpt = fabricCanvas.viewportTransform ? [...fabricCanvas.viewportTransform] : [1, 0, 0, 1, 0, 0]
+        vpt[4] -= dx
+        vpt[5] -= dy
+        fabricCanvas.setViewportTransform(vpt as [number, number, number, number, number, number])
+        fabricCanvas.requestRenderAll()
+
+        setPan({ x: vpt[4], y: vpt[5] })
+        optionsRef.current.onPanChange?.({ x: vpt[4], y: vpt[5] })
+      }
 
       e.preventDefault()
       e.stopPropagation()
