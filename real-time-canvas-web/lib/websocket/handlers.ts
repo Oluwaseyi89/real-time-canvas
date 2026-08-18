@@ -176,6 +176,20 @@ export class WebSocketHandlers {
                 })
               }
               ;(group as any).id = objectId
+              // Group.fromObject() leaves Fabric's own native type string
+              // ('Group', capitalized) in place — this app tags its own
+              // groups 'group' (lowercase) via ObjectFactory.createGroup, and
+              // ungroupSelection (useCanvas.ts) checks for that exact
+              // lowercase string. Without re-tagging it here to match, a
+              // group created by one client couldn't be ungrouped by anyone
+              // who received it over the wire — Ctrl+Shift+G would silently
+              // no-op for every client except whoever originally grouped it.
+              Object.defineProperty(group, 'type', {
+                value: 'group',
+                writable: true,
+                configurable: true,
+                enumerable: true,
+              })
               ;(group as any).createdBy = message.userId
               ;(group as any).createdAt = new Date()
               ;(group as any).synced = true

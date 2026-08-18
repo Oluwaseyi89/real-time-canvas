@@ -148,6 +148,8 @@ interface FabricObjectEvent {
   e?: TPointerEvent
 }
 
+export type SelectionKind = 'group' | 'multi' | 'single' | null
+
 interface UseCanvasOptions {
   onObjectAdded?: (obj: FabricObject) => void
   onObjectRemoved?: (obj: FabricObject) => void
@@ -156,6 +158,14 @@ interface UseCanvasOptions {
   onObjectMoving?: (obj: FabricObject) => void
   onZoomChange?: (zoom: number) => void
   onPanChange?: (pan: { x: number; y: number }) => void
+  // Drives the contextual Group/Ungroup toolbar — 'multi' when 2+ objects
+  // are shift-selected (Fabric's native ActiveSelection), 'group' when the
+  // selection is a single already-grouped object, null once nothing's
+  // selected. Both keyboard shortcuts collided with OS/browser-reserved
+  // combos (Ctrl+Shift+G is Chrome's "Find Previous"; Ctrl+Shift+U is
+  // Linux's IBus Unicode-input trigger), so this is the actual, reliable
+  // way to group/ungroup — see the room page's selection toolbar.
+  onSelectionChange?: (info: { kind: SelectionKind; count: number }) => void
 }
 
 /**
@@ -240,6 +250,26 @@ export function useCanvas(options: UseCanvasOptions = {}) {
       optionsRef.current.onObjectAdded?.(tagged)
     })
 
+    // Reports what kind of selection is active, for the room page's
+    // contextual Group/Ungroup toolbar (see onSelectionChange above).
+    // Fabric's own type getter already lowercases both 'ActiveSelection'
+    // and 'Group' to match, so no custom tagging is needed to read these —
+    // unlike ungroupSelection's own check, which relies on this app's
+    // shadowed 'group' tag specifically to also catch remotely-synced
+    // groups (see lib/websocket/handlers.ts).
+    const reportSelectionKind = () => {
+      const active = fabricCanvas.getActiveObject()
+      if (!active) {
+        optionsRef.current.onSelectionChange?.({ kind: null, count: 0 })
+      } else if (active.type === 'activeselection') {
+        optionsRef.current.onSelectionChange?.({ kind: 'multi', count: (active as ActiveSelection).size() })
+      } else if (active.type === 'group') {
+        optionsRef.current.onSelectionChange?.({ kind: 'group', count: 1 })
+      } else {
+        optionsRef.current.onSelectionChange?.({ kind: 'single', count: 1 })
+      }
+    }
+
     // Object selected event — also resets the rotate handle to hidden on
     // every fresh selection, so a double-click's reveal (below) doesn't
     // stick around the next time this or another object gets selected.
@@ -248,9 +278,11 @@ export function useCanvas(options: UseCanvasOptions = {}) {
       if (e.selected && e.selected.length > 0) {
         optionsRef.current.onObjectSelected?.(e.selected[0])
       }
+      reportSelectionKind()
     }
     fabricCanvas.on('selection:created', handleSelection)
     fabricCanvas.on('selection:updated', handleSelection)
+    fabricCanvas.on('selection:cleared', reportSelectionKind)
 
     // Double-click an object to reveal its rotate handle — the deliberate
     // gesture that opts back into rotation (see setRotateHandleVisible

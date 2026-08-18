@@ -9,7 +9,7 @@
 
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState, useCallback, useRef } from 'react'
-import { useCanvas } from '@/hooks/useCanvas'
+import { useCanvas, type SelectionKind } from '@/hooks/useCanvas'
 import { useWebSocket } from '@/hooks/useWebSocket'
 import { useRoom } from '@/hooks/useRoom'
 import { useAuth } from '@/hooks/useAuth'
@@ -116,6 +116,14 @@ export default function CanvasRoomPage() {
   // dock, independent of the left-side single-panel group.
   const [isPaletteOpen, setIsPaletteOpen] = useState(false)
   const togglePalette = useCallback(() => setIsPaletteOpen((prev) => !prev), [])
+
+  // Drives the contextual Group/Ungroup toolbar (see useCanvas.ts's
+  // onSelectionChange). Both actions used to be keyboard-only, but every
+  // "obvious" shortcut collided with an OS/browser-reserved combo
+  // (Ctrl+Shift+G is Chrome's "Find Previous", Ctrl+Shift+U is Linux's
+  // IBus Unicode-input trigger) — a visible button sidesteps that
+  // entirely.
+  const [selectionInfo, setSelectionInfo] = useState<{ kind: SelectionKind; count: number }>({ kind: null, count: 0 })
 
   const canvasElementRef = useRef<HTMLCanvasElement | null>(null)
   const lastCursorPos = useRef<{ x: number; y: number } | null>(null)
@@ -431,6 +439,7 @@ export default function CanvasRoomPage() {
       recordEvent('object:delete', { objectId: custom.id })
       broadcastObjectDelete({ objectId: custom.id, userId })
     },
+    onSelectionChange: setSelectionInfo,
   })
 
   // `send` isn't available until useWebSocket() below, and onCollision needs
@@ -831,9 +840,13 @@ export default function CanvasRoomPage() {
   }, [physicsEnabled, physicsEngine, attractBody, repelBody])
 
   // Selection keybinds — Escape deselects, Delete/Backspace removes the
-  // current selection, Ctrl/Cmd+G groups a multi-selection, Ctrl/Cmd+Shift+G
-  // ungroups. Shift-click multi-select itself needs no code here: it's
-  // Fabric's native ActiveSelection behavior, already enabled by
+  // current selection, Ctrl/Cmd+G groups a multi-selection, Ctrl/Cmd+Shift+U
+  // ungroups. Ungroup deliberately isn't Ctrl/Cmd+Shift+G (the "obvious"
+  // pairing with group) — that combo is Chrome's own built-in "Find
+  // Previous" shortcut and gets consumed by the browser before this
+  // listener ever sees it, so the ungroup action would silently never fire
+  // for a real keypress. Shift-click multi-select itself needs no code
+  // here: it's Fabric's native ActiveSelection behavior, already enabled by
   // CANVAS_CONFIG.selection and never disabled outside shape-drawing/pan/
   // pinch (see useCanvas.ts).
   useEffect(() => {
@@ -856,10 +869,15 @@ export default function CanvasRoomPage() {
         return
       }
 
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'g') {
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key.toLowerCase() === 'g') {
         e.preventDefault()
-        if (e.shiftKey) ungroupSelection()
-        else groupSelection()
+        groupSelection()
+        return
+      }
+
+      if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key.toLowerCase() === 'u') {
+        e.preventDefault()
+        ungroupSelection()
       }
     }
 
@@ -1006,9 +1024,44 @@ export default function CanvasRoomPage() {
       <CursorTracker canvasRef={canvasElementRef} />
 
       {/* Ephemeral typing notice — only ever appears while someone is
-          actually typing, so it doesn't count as persistent chrome. */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
+          actually typing, so it doesn't count as persistent chrome. Shares
+          this top-center anchor with the selection toolbar below (stacked
+          in a column so neither ever overlaps the other). */}
+      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex flex-col items-center gap-2 pointer-events-none">
         <TypingIndicator className="bg-slate-50/80 dark:bg-slate-950/80 backdrop-blur-xl text-slate-800 dark:text-slate-200 px-3 py-1.5 rounded-full shadow-2xl border border-slate-200/80 dark:border-slate-800/80 text-xs" />
+
+        {/* Contextual Group/Ungroup toolbar. Both actions used to be
+            keyboard-only, but every "obvious" shortcut turned out to
+            collide with an OS/browser-reserved combo (Ctrl+Shift+G is
+            Chrome's own "Find Previous"; Ctrl+Shift+U is Linux's IBus
+            Unicode-input trigger) — a real button sidesteps that class of
+            problem entirely instead of hunting for a combo nothing else
+            has ever claimed. */}
+        {(selectionInfo.kind === 'multi' || selectionInfo.kind === 'group') && (
+          <button
+            type="button"
+            onClick={selectionInfo.kind === 'multi' ? groupSelection : ungroupSelection}
+            className="glass-panel pointer-events-auto flex items-center gap-1.5 px-3 py-1.5 rounded-full shadow-2xl border border-slate-300/60 dark:border-slate-700/60 backdrop-blur-xl text-xs font-medium text-slate-700 dark:text-slate-300 hover:text-slate-900 dark:hover:text-slate-100 hover:bg-slate-200/60 dark:hover:bg-slate-800/60 transition-all active:scale-95"
+          >
+            {selectionInfo.kind === 'multi' ? (
+              <>
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <rect x="4" y="4" width="10" height="10" rx="1.5" strokeWidth={2} />
+                  <rect x="10" y="10" width="10" height="10" rx="1.5" strokeWidth={2} />
+                </svg>
+                Group {selectionInfo.count} objects
+              </>
+            ) : (
+              <>
+                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <rect x="4" y="4" width="7" height="7" rx="1.5" strokeWidth={2} />
+                  <rect x="13" y="13" width="7" height="7" rx="1.5" strokeWidth={2} />
+                </svg>
+                Ungroup
+              </>
+            )}
+          </button>
+        )}
       </div>
 
       {/* FEATURE DOCK — every panel below (tools, radar, zoom, time travel,

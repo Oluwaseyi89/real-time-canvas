@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log"
+	"maps"
 
 	"real-time-canvas/real-time-canvas-service/internal/models"
 	"real-time-canvas/real-time-canvas-service/internal/models/dto"
@@ -169,7 +170,25 @@ func (s *CanvasService) UpdateObject(objectID, userID string, req *dto.UpdateObj
 
 	// Update fields
 	if req.Data != nil {
-		dataJSON, err := json.Marshal(req.Data)
+		// Merge onto the existing stored data rather than replacing it
+		// outright. Update payloads come from the client's own toObject()
+		// dump, which the frontend's safeToObject() wrapper deliberately
+		// downgrades to an empty {} if Fabric's serializer throws (a known
+		// Fabric v6 edge case for Group/ActiveSelection instances after
+		// certain group/ungroup + transform sequences) rather than letting
+		// that break the app. A full replace here turned that safety net
+		// into data loss: an empty update wiped out a group's already-
+		// persisted children, so the group silently vanished on the next
+		// reload. Merging means a sparse or empty update payload can only
+		// add/overwrite fields, never blank out ones it didn't include.
+		existing := map[string]interface{}{}
+		if len(obj.Data) > 0 {
+			if err := json.Unmarshal(obj.Data, &existing); err != nil {
+				return nil, err
+			}
+		}
+		maps.Copy(existing, req.Data)
+		dataJSON, err := json.Marshal(existing)
 		if err != nil {
 			return nil, err
 		}
