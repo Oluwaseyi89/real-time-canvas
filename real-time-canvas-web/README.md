@@ -95,9 +95,10 @@ Infinite Canvas is a high-performance collaborative workspace that enables multi
 ### Tech Stack
 
 **Frontend Framework:**
-- Next.js 15 (App Router, React 19)
+- Next.js 16 (App Router, Turbopack)
+- React 19
 - TypeScript
-- Tailwind CSS
+- Tailwind CSS v4
 
 **Core Libraries:**
 - Fabric.js v6 – Canvas rendering and object management
@@ -107,73 +108,76 @@ Infinite Canvas is a high-performance collaborative workspace that enables multi
 - WebSocket – Real-time communication
 
 **Storage:**
-- IndexedDB – Offline operation queue
+- IndexedDB (via localforage) – Offline operation queue
 - Session Storage – User identity
+
+**Quality tooling:**
+- ESLint (`eslint-config-next`, flat config) – linting
+- TypeScript compiler (`tsc --noEmit`) – type-checking
 
 ### Project Structure
 ```
 real-time-canvas-web/
-├── app/                    # Next.js App Router pages
-│   ├── (auth)/            # Authentication routes (login)
-│   ├── (canvas)/          # Canvas workspace routes
-│   │   ├── page.tsx       # Room launcher
-│   │   └── room/[roomId]/ # Individual canvas room
-│   ├── api/               # API routes
-│   └── providers/         # Context providers
+├── app/                     # Next.js App Router pages
+│   ├── (auth)/login/       # Login page
+│   ├── (canvas)/           # Canvas workspace routes
+│   │   ├── page.tsx        # Room launcher dashboard
+│   │   └── room/[roomId]/  # Individual canvas room
+│   ├── api/                # Route handlers (NextAuth, room proxying)
+│   └── providers/          # Context providers
 ├── components/
-│   ├── canvas/            # Canvas components
-│   │   ├── tools/         # Toolbar and tools (Text, Shape, Image, etc.)
-│   │   ├── minimap/       # Radar and minimap
-│   │   └── physics/       # Physics engine controls
-│   ├── collaboration/     # Real-time collaboration UI
-│   ├── room/              # Room management
-│   └── export/            # Export functionality
-├── hooks/                 # Custom React hooks
-│   ├── useCanvas.ts       # Canvas lifecycle management
-│   ├── useWebSocket.ts    # WebSocket connection
-│   ├── usePhysics.ts      # Physics integration
-│   ├── useOfflineSync.ts  # Offline operation queue
-│   ├── useTimeTravel.ts   # Session replay
-│   └── useAuth.ts         # Authentication state
+│   ├── canvas/
+│   │   ├── InfiniteCanvas/ # Core canvas (Core/Events/Renderer split)
+│   │   ├── tools/          # Toolbar + Text/Shape/Image/StickyNote/Pencil/Audio tools
+│   │   ├── objects/        # Fabric object wrappers
+│   │   ├── dock/           # Dockable tool rail + color palette
+│   │   ├── minimap/        # Radar minimap
+│   │   └── physics/        # Physics engine, Matter.js bridge, controls
+│   ├── collaboration/      # Presence, cursors, typing indicators
+│   ├── room/                # Room list/invite/info/create/join dialogs
+│   ├── export/               # PNG/SVG/JSON exporters
+│   └── ui/                   # Shared primitives (Button, Modal, Toast, ...)
+├── hooks/                   # useCanvas, useWebSocket, usePhysics, useOfflineSync,
+│                             # useTimeTravel, useRoom, useAuth, useCollaboration,
+│                             # useMinimap, useZoomPan
 ├── lib/
-│   ├── canvas/            # Fabric.js configuration & renderer
-│   ├── websocket/         # WebSocket client & handlers
-│   ├── offline/           # IndexedDB & sync engine
-│   ├── time-travel/       # Event store & replay engine
-│   └── physics/           # Matter.js integration
-├── store/                 # Zustand state stores
-│   ├── canvasStore.ts
-│   ├── collaborationStore.ts
-│   ├── websocketStore.ts
-│   └── ...
-├── types/                 # TypeScript type definitions
-└── config/               # Environment & app configuration
+│   ├── canvas/              # Fabric config, renderer, object factory, minimap renderer
+│   ├── websocket/            # WebSocket client, message handlers, event types
+│   ├── offline/               # IndexedDB, queue manager, sync engine
+│   ├── time-travel/           # Event store + replay engine
+│   ├── physics/                # Matter.js physics engine
+│   ├── yjs/                    # CRDT collaboration (crdt/sync/provider)
+│   ├── theme/                  # Theme provider (light/dark)
+│   ├── api/                    # REST client
+│   └── utils/                  # coordinates, debounce, uuid
+├── store/                   # Zustand stores: canvas, collaboration, drawing, export,
+│                             # history, minimap, room, auth, user, websocket
+├── types/                   # TypeScript type definitions
+├── config/                  # Constants & environment config
+└── eslint.config.mjs
 ```
 
 ## 🚀 Getting Started
 
 ### Prerequisites
-- Node.js 18+ or Bun
-- npm or yarn or bun
+- Node.js 22+
+- npm (the repo ships a `package-lock.json`)
+- A running instance of [`real-time-canvas-service`](../real-time-canvas-service) (for the API/WebSocket backend)
 
 ### Installation
 ```bash
-# Clone the repository
-git clone https://github.com/yourusername/real-time-canvas-web.git
-cd real-time-canvas-web
+# From the repo root
+git clone https://github.com/Oluwaseyi89/real-time-canvas.git
+cd real-time-canvas/real-time-canvas-web
 
 # Install dependencies
 npm install
-# or
-bun install
 
 # Copy environment variables
 cp .env.example .env
 
 # Start development server
 npm run dev
-# or
-bun dev
 ```
 
 ## Environment Variables
@@ -183,6 +187,20 @@ NEXT_PUBLIC_APP_NAME=Real-Time Collaborative Canvas
 NEXT_PUBLIC_API_URL=http://localhost:8080/api/v1
 NEXT_PUBLIC_WS_URL=ws://localhost:8080/ws
 ```
+
+## ✅ Quality & CI
+
+```bash
+npm run type-check   # tsc --noEmit
+npm run lint         # eslint .
+npm run build        # next build (also type-checks)
+```
+
+All three run in [`real-time-canvas-web-ci.yml`](../.github/workflows/real-time-canvas-web-ci.yml) on every PR that touches this directory. `type-check` and `build` are required to pass.
+
+`lint` is currently **informational only** (`continue-on-error`): ESLint was only wired up alongside this CI workflow, and the existing codebase has pre-existing lint debt it surfaces (mostly `@typescript-eslint/no-explicit-any`, plus a couple of real `react-hooks/refs` findings worth looking at). Please don't add *new* lint errors in your changes, and feel free to clean up warnings you touch in passing — once the count reaches zero this step will flip to required.
+
+There is currently no automated test suite for this app (no Jest/Vitest/Playwright config) — manual verification against a running backend is the only coverage. Contributions adding tests are very welcome.
 
 ## 🔧 Usage
 
@@ -252,6 +270,7 @@ All panels use a consistent glassmorphism style with:
 ## 🤝 Contributing
 1. Fork the repository
 2. Create a feature branch
-3. Commit changes with conventional commits
-4. Push to the branch
-5. Open a pull request
+3. Run `npm run type-check`, `npm run lint`, and `npm run build` locally (see [Quality & CI](#-quality--ci))
+4. Commit changes with conventional commits
+5. Push to the branch
+6. Open a pull request

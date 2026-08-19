@@ -1,0 +1,53 @@
+name: real-time-canvas-web CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "real-time-canvas-web/**"
+      - ".github/workflows/real-time-canvas-web-ci.yml"
+  pull_request:
+    paths:
+      - "real-time-canvas-web/**"
+      - ".github/workflows/real-time-canvas-web-ci.yml"
+
+defaults:
+  run:
+    working-directory: real-time-canvas-web
+
+concurrency:
+  group: web-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Type-check, lint & build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+          cache-dependency-path: real-time-canvas-web/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check
+        run: npm run type-check
+
+      - name: Build
+        run: npm run build
+
+      - name: Lint (informational)
+        # The codebase pre-dates ESLint being wired up, so there's existing
+        # lint debt (see the PR that added this workflow). Lint runs and is
+        # visible on every PR, but doesn't fail the build until that debt is
+        # paid down — flip this to a hard failure once `npm run lint` is
+        # clean on main.
+        run: npm run lint
+        continue-on-error: true
