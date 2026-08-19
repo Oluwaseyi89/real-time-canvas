@@ -176,6 +176,20 @@ export class WebSocketHandlers {
                 })
               }
               ;(group as any).id = objectId
+              // Group.fromObject() leaves Fabric's own native type string
+              // ('Group', capitalized) in place — this app tags its own
+              // groups 'group' (lowercase) via ObjectFactory.createGroup, and
+              // ungroupSelection (useCanvas.ts) checks for that exact
+              // lowercase string. Without re-tagging it here to match, a
+              // group created by one client couldn't be ungrouped by anyone
+              // who received it over the wire — Ctrl+Shift+G would silently
+              // no-op for every client except whoever originally grouped it.
+              Object.defineProperty(group, 'type', {
+                value: 'group',
+                writable: true,
+                configurable: true,
+                enumerable: true,
+              })
               ;(group as any).createdBy = message.userId
               ;(group as any).createdAt = new Date()
               ;(group as any).synced = true
@@ -258,7 +272,33 @@ export class WebSocketHandlers {
     }
 
     try {
-      obj.set(updates as Partial<FabricObject>)
+      // Fabric's own toObject() (the source of every update payload, via
+      // safeToObject in the room page) always bakes `type` from
+      // this.constructor.type — the native Fabric class name (e.g. "Group",
+      // capitalized) — never from an instance's own shadowed `.type`
+      // property (see attachCustomProps/ObjectFactory, which shadow it with
+      // this app's lowercase tag like "group" or "sticky-group"). Applying
+      // that field back through the generic .set() below would overwrite
+      // the shadow with the native name, permanently breaking every check
+      // that relies on the app's type tag (e.g. the Group/Ungroup toolbar's
+      // active.type === 'group') the next time this object is merely moved
+      // or resized. An object's id and app-type are identity, never touched
+      // by an update.
+      const { type: _type, id: _id, ...safeUpdates } = updates as Partial<FabricObject> & { type?: string; id?: string }
+      obj.set(safeUpdates as Partial<FabricObject>)
+      // Line.toObject() serializes x1/y1/x2/y2 as coordinates local to the
+      // line's own center (via calcLinePoints()), not absolute scene
+      // coordinates — and since they come after left/top in the payload's
+      // key order, applying them through the generic .set() above re-enters
+      // Line's internal _set() override, which recomputes width/height and
+      // recenters the object via setPositionByOrigin, silently overwriting
+      // the correct left/top this same .set() call just applied. Every
+      // moved line was snapping back to ~(0,0) on its own broadcast echo
+      // because of this. Re-asserting left/top afterward is a no-op for
+      // every other object type and restores the real position for lines.
+      const { left, top } = updates as { left?: number; top?: number }
+      if (typeof left === 'number') obj.set('left', left)
+      if (typeof top === 'number') obj.set('top', top)
       obj.setCoords()
       this.context.canvas.requestRenderAll()
     } catch (error) {

@@ -64,7 +64,22 @@ function createShapePreview(type: DrawableShapeType, x: number, y: number, fill:
 
 function updateShapePreview(preview: FabricObject, type: DrawableShapeType, x1: number, y1: number, x2: number, y2: number) {
   if (type === 'line') {
-    ;(preview as Line).set({ x1, y1, x2, y2 })
+    // Fabric's Line renders using width/height/left/top, which are only
+    // computed once at construction time — setting x1/y1/x2/y2 alone leaves
+    // those stale, so the line visually stays anchored at its starting
+    // (zero-size) bounds no matter how far the pointer moves. Recomputing
+    // them alongside the coordinates is what actually makes the preview
+    // track the drag.
+    ;(preview as Line).set({
+      x1,
+      y1,
+      x2,
+      y2,
+      left: Math.min(x1, x2),
+      top: Math.min(y1, y2),
+      width: Math.abs(x2 - x1),
+      height: Math.abs(y2 - y1),
+    })
     preview.setCoords()
     return
   }
@@ -133,6 +148,8 @@ interface FabricObjectEvent {
   e?: TPointerEvent
 }
 
+export type SelectionKind = 'group' | 'multi' | 'single' | null
+
 interface UseCanvasOptions {
   onObjectAdded?: (obj: FabricObject) => void
   onObjectRemoved?: (obj: FabricObject) => void
@@ -141,6 +158,14 @@ interface UseCanvasOptions {
   onObjectMoving?: (obj: FabricObject) => void
   onZoomChange?: (zoom: number) => void
   onPanChange?: (pan: { x: number; y: number }) => void
+  // Drives the contextual Group/Ungroup toolbar — 'multi' when 2+ objects
+  // are shift-selected (Fabric's native ActiveSelection), 'group' when the
+  // selection is a single already-grouped object, null once nothing's
+  // selected. Both keyboard shortcuts collided with OS/browser-reserved
+  // combos (Ctrl+Shift+G is Chrome's "Find Previous"; Ctrl+Shift+U is
+  // Linux's IBus Unicode-input trigger), so this is the actual, reliable
+  // way to group/ungroup — see the room page's selection toolbar.
+  onSelectionChange?: (info: { kind: SelectionKind; count: number }) => void
 }
 
 /**
@@ -187,9 +212,21 @@ export function useCanvas(options: UseCanvasOptions = {}) {
    * Set up canvas event listeners
    */
   const setupCanvasEvents = useCallback((fabricCanvas: Canvas) => {
+    // Rotate handle: hidden by default. A stray drag on a resize handle just
+    // resizes, easily undone; a stray drag on the rotate handle spins the
+    // object off-angle and is a much easier accidental gesture to trigger
+    // right next to the top-center resize handle. Keeping it hidden until
+    // the user deliberately double-clicks the object makes rotation an
+    // opt-in action instead of something that can happen by accident on
+    // every selection.
+    const setRotateHandleVisible = (obj: FabricObject | null | undefined, visible: boolean) => {
+      obj?.setControlsVisibility({ mtr: visible })
+    }
+
     // Object added event
     fabricCanvas.on('object:added', (e: FabricObjectEvent) => {
       if (e.target) {
+        setRotateHandleVisible(e.target, false)
         optionsRef.current.onObjectAdded?.(e.target)
       }
     })
@@ -213,11 +250,47 @@ export function useCanvas(options: UseCanvasOptions = {}) {
       optionsRef.current.onObjectAdded?.(tagged)
     })
 
-    // Object selected event
-    fabricCanvas.on('selection:created', (e: FabricSelectionEvent) => {
+    // Reports what kind of selection is active, for the room page's
+    // contextual Group/Ungroup toolbar (see onSelectionChange above).
+    // Fabric's own type getter already lowercases both 'ActiveSelection'
+    // and 'Group' to match, so no custom tagging is needed to read these —
+    // unlike ungroupSelection's own check, which relies on this app's
+    // shadowed 'group' tag specifically to also catch remotely-synced
+    // groups (see lib/websocket/handlers.ts).
+    const reportSelectionKind = () => {
+      const active = fabricCanvas.getActiveObject()
+      if (!active) {
+        optionsRef.current.onSelectionChange?.({ kind: null, count: 0 })
+      } else if (active.type === 'activeselection') {
+        optionsRef.current.onSelectionChange?.({ kind: 'multi', count: (active as ActiveSelection).size() })
+      } else if (active.type === 'group') {
+        optionsRef.current.onSelectionChange?.({ kind: 'group', count: 1 })
+      } else {
+        optionsRef.current.onSelectionChange?.({ kind: 'single', count: 1 })
+      }
+    }
+
+    // Object selected event — also resets the rotate handle to hidden on
+    // every fresh selection, so a double-click's reveal (below) doesn't
+    // stick around the next time this or another object gets selected.
+    const handleSelection = (e: FabricSelectionEvent) => {
+      e.selected?.forEach((obj) => setRotateHandleVisible(obj, false))
       if (e.selected && e.selected.length > 0) {
         optionsRef.current.onObjectSelected?.(e.selected[0])
       }
+      reportSelectionKind()
+    }
+    fabricCanvas.on('selection:created', handleSelection)
+    fabricCanvas.on('selection:updated', handleSelection)
+    fabricCanvas.on('selection:cleared', reportSelectionKind)
+
+    // Double-click an object to reveal its rotate handle — the deliberate
+    // gesture that opts back into rotation (see setRotateHandleVisible
+    // above for why it's hidden by default).
+    fabricCanvas.on('mouse:dblclick', (opt: { target?: FabricObject }) => {
+      if (!opt.target) return
+      setRotateHandleVisible(opt.target, true)
+      fabricCanvas.requestRenderAll()
     })
 
     // Object modified event using native Fabric v6 ModifiedEvent type
@@ -235,24 +308,45 @@ export function useCanvas(options: UseCanvasOptions = {}) {
       }
     })
 
-    // Mouse wheel zoom handling
+    // Mouse wheel: plain scroll pans the canvas (matches every other
+    // infinite-canvas app — Figma, Miro, etc.), Ctrl/Cmd+wheel zooms. This
+    // also covers trackpad pinch-to-zoom, which browsers report as a wheel
+    // event with ctrlKey set to true rather than as its own gesture.
     fabricCanvas.on('mouse:wheel', (opt: { e: WheelEvent }) => {
       const e = opt.e
-      const delta = e.deltaY
-      const currentZoom = fabricCanvas.getZoom()
 
-      let newZoom = currentZoom - delta * ZOOM_CONFIG.wheelZoomSpeed
-      newZoom = Math.min(Math.max(newZoom, ZOOM_CONFIG.minZoom), ZOOM_CONFIG.maxZoom)
+      if (e.ctrlKey || e.metaKey) {
+        const delta = e.deltaY
+        const currentZoom = fabricCanvas.getZoom()
 
-      const pointer = fabricCanvas.getScenePoint(e)
+        let newZoom = currentZoom - delta * ZOOM_CONFIG.wheelZoomSpeed
+        newZoom = Math.min(Math.max(newZoom, ZOOM_CONFIG.minZoom), ZOOM_CONFIG.maxZoom)
 
-      fabricCanvas.zoomToPoint(
-        new Point(pointer.x, pointer.y),
-        newZoom
-      )
+        const pointer = fabricCanvas.getScenePoint(e)
 
-      setZoom(newZoom)
-      optionsRef.current.onZoomChange?.(newZoom)
+        fabricCanvas.zoomToPoint(
+          new Point(pointer.x, pointer.y),
+          newZoom
+        )
+
+        setZoom(newZoom)
+        optionsRef.current.onZoomChange?.(newZoom)
+      } else {
+        // Shift+wheel lets a plain vertical mouse wheel scroll horizontally
+        // (standard browser convention); trackpads already report deltaX
+        // directly for two-finger horizontal scroll.
+        const dx = e.shiftKey && e.deltaX === 0 ? e.deltaY : e.deltaX
+        const dy = e.shiftKey && e.deltaX === 0 ? 0 : e.deltaY
+
+        const vpt = fabricCanvas.viewportTransform ? [...fabricCanvas.viewportTransform] : [1, 0, 0, 1, 0, 0]
+        vpt[4] -= dx
+        vpt[5] -= dy
+        fabricCanvas.setViewportTransform(vpt as [number, number, number, number, number, number])
+        fabricCanvas.requestRenderAll()
+
+        setPan({ x: vpt[4], y: vpt[5] })
+        optionsRef.current.onPanChange?.({ x: vpt[4], y: vpt[5] })
+      }
 
       e.preventDefault()
       e.stopPropagation()
@@ -961,7 +1055,23 @@ export function useCanvas(options: UseCanvasOptions = {}) {
     if (!active || active.type !== 'group') return
 
     const groupObj = active as Group
-    const objects = groupObj.removeAll()
+    // Snapshot children before calling removeAll(), not after. Fabric v6's
+    // removeAll()/remove() splices each child out of the group's own
+    // _objects list *before* running its after-change layout hook — so
+    // when that hook throws (the same "layoutManager isn't a standard
+    // LayoutManager after certain group/ungroup + transform sequences"
+    // edge case documented in ObjectFactory.createGroup, observed here as
+    // "this.layoutManager.performLayout is not a function"), removeAll()
+    // never returns and its would-be return value is lost, even though
+    // the children are already detached from the group internally. Without
+    // this snapshot, that throw made every member of the group vanish —
+    // detached from the group, never added back to the canvas.
+    const objects = groupObj.getObjects().slice()
+    try {
+      groupObj.removeAll()
+    } catch (error) {
+      console.warn('[useCanvas] ungroup removeAll() failed, recovering members from snapshot:', error)
+    }
     activeCanvas.remove(groupObj)
     objects.forEach((obj) => activeCanvas.add(obj))
 

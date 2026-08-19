@@ -241,7 +241,25 @@ export class ObjectFactory {
         delete (obj as { type?: string }).type
       }
     })
-    const serialized = tagged.toObject(['metadata', 'createdBy'])
+    // toObject() runs synchronously inside groupSelection, which has
+    // already removed every member from the canvas (and broadcast their
+    // deletion) by the time this runs — a Group/ActiveSelection whose
+    // layoutManager isn't a standard LayoutManager after certain
+    // group/ungroup + transform sequences (a known Fabric v6 edge case,
+    // observed here as "this.layoutManager.toObject is not a function")
+    // throws here. Left uncaught, that abort leaves the just-removed
+    // members gone with nothing added back — the group/its members
+    // visibly vanish. The room page's own safeToObject() already treats
+    // this exact failure as non-fatal for broadcast payloads; matching
+    // that fallback here keeps group construction (and therefore
+    // canvas.add(group) in groupSelection) always succeeding.
+    let serialized: Record<string, unknown>
+    try {
+      serialized = tagged.toObject(['metadata', 'createdBy'])
+    } catch (error) {
+      console.warn('[ObjectFactory] createGroup toObject() failed, syncing without full data:', error)
+      serialized = {}
+    }
     objects.forEach((obj, i) => {
       const meta = memberMeta[i]
       if (meta.type) {
