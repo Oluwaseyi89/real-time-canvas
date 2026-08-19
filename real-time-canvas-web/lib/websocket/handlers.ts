@@ -272,7 +272,20 @@ export class WebSocketHandlers {
     }
 
     try {
-      obj.set(updates as Partial<FabricObject>)
+      // Fabric's own toObject() (the source of every update payload, via
+      // safeToObject in the room page) always bakes `type` from
+      // this.constructor.type — the native Fabric class name (e.g. "Group",
+      // capitalized) — never from an instance's own shadowed `.type`
+      // property (see attachCustomProps/ObjectFactory, which shadow it with
+      // this app's lowercase tag like "group" or "sticky-group"). Applying
+      // that field back through the generic .set() below would overwrite
+      // the shadow with the native name, permanently breaking every check
+      // that relies on the app's type tag (e.g. the Group/Ungroup toolbar's
+      // active.type === 'group') the next time this object is merely moved
+      // or resized. An object's id and app-type are identity, never touched
+      // by an update.
+      const { type: _type, id: _id, ...safeUpdates } = updates as Partial<FabricObject> & { type?: string; id?: string }
+      obj.set(safeUpdates as Partial<FabricObject>)
       // Line.toObject() serializes x1/y1/x2/y2 as coordinates local to the
       // line's own center (via calcLinePoints()), not absolute scene
       // coordinates — and since they come after left/top in the payload's

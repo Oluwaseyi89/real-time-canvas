@@ -1055,7 +1055,23 @@ export function useCanvas(options: UseCanvasOptions = {}) {
     if (!active || active.type !== 'group') return
 
     const groupObj = active as Group
-    const objects = groupObj.removeAll()
+    // Snapshot children before calling removeAll(), not after. Fabric v6's
+    // removeAll()/remove() splices each child out of the group's own
+    // _objects list *before* running its after-change layout hook — so
+    // when that hook throws (the same "layoutManager isn't a standard
+    // LayoutManager after certain group/ungroup + transform sequences"
+    // edge case documented in ObjectFactory.createGroup, observed here as
+    // "this.layoutManager.performLayout is not a function"), removeAll()
+    // never returns and its would-be return value is lost, even though
+    // the children are already detached from the group internally. Without
+    // this snapshot, that throw made every member of the group vanish —
+    // detached from the group, never added back to the canvas.
+    const objects = groupObj.getObjects().slice()
+    try {
+      groupObj.removeAll()
+    } catch (error) {
+      console.warn('[useCanvas] ungroup removeAll() failed, recovering members from snapshot:', error)
+    }
     activeCanvas.remove(groupObj)
     objects.forEach((obj) => activeCanvas.add(obj))
 
