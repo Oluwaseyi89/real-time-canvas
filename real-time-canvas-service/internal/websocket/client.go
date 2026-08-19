@@ -54,15 +54,14 @@ func NewClient(conn *websocket.Conn, hub *Hub, userID, username string) *Client 
 func (c *Client) ReadPump() {
 	defer func() {
 		c.Hub.Unregister <- c
-		c.Conn.Close()
+		_ = c.Conn.Close()
 	}()
 
 	c.Conn.SetReadLimit(512 * 1024) // 512KB max message size
-	c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	_ = c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	c.Conn.SetPongHandler(func(string) error {
-		c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 		c.updateLastSeen()
-		return nil
+		return c.Conn.SetReadDeadline(time.Now().Add(60 * time.Second))
 	})
 
 	for {
@@ -88,7 +87,7 @@ func (c *Client) WritePump() {
 	ticker := time.NewTicker(30 * time.Second)
 	defer func() {
 		ticker.Stop()
-		c.Conn.Close()
+		_ = c.Conn.Close()
 	}()
 
 	for {
@@ -96,12 +95,12 @@ func (c *Client) WritePump() {
 		case msg, ok := <-c.Send:
 			c.writeMu.Lock()
 			if !ok {
-				c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
+				_ = c.Conn.WriteMessage(websocket.CloseMessage, []byte{})
 				c.writeMu.Unlock()
 				return
 			}
 
-			c.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			_ = c.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			err := c.Conn.WriteJSON(msg)
 			if err != nil {
 				log.Printf("[WebSocket] Failed to send message to client %s: %v", c.ID, err)
@@ -112,7 +111,7 @@ func (c *Client) WritePump() {
 
 		case <-ticker.C:
 			c.writeMu.Lock()
-			c.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
+			_ = c.Conn.SetWriteDeadline(time.Now().Add(10 * time.Second))
 			if err := c.Conn.WriteMessage(websocket.PingMessage, nil); err != nil {
 				c.writeMu.Unlock()
 				return

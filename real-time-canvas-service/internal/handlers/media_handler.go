@@ -62,7 +62,7 @@ func (h *MediaHandler) UploadMedia(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "failed to read uploaded file"})
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	contentType := fileHeader.Header.Get("Content-Type")
 	if contentType == "" {

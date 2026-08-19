@@ -2,13 +2,18 @@
 
 Real-time collaborative whiteboard with physics, offline sync, and time travel
 
+[![real-time-canvas-web CI](https://github.com/Oluwaseyi89/real-time-canvas/actions/workflows/real-time-canvas-web-ci.yml/badge.svg)](https://github.com/Oluwaseyi89/real-time-canvas/actions/workflows/real-time-canvas-web-ci.yml)
+[![real-time-canvas-service CI](https://github.com/Oluwaseyi89/real-time-canvas/actions/workflows/real-time-canvas-service-ci.yml/badge.svg)](https://github.com/Oluwaseyi89/real-time-canvas/actions/workflows/real-time-canvas-service-ci.yml)
+
 ## 📋 Overview
 Infinite Canvas is a full-stack collaborative workspace that enables multiple users to create, manipulate, and interact with content on an infinite 2D surface in real-time. Built for hackathons and creative collaboration, it combines advanced whiteboard features with physics simulations, offline capabilities, and session replay.
 
-The platform consists of:
+The platform consists of two independently deployable apps, each with its own README:
 
-- **Frontend**: Next.js 15 with React 19, Fabric.js, Matter.js, and WebSocket
-- **Backend**: Go with Gin framework, PostgreSQL, Redis, and Gorilla WebSocket
+- **[`real-time-canvas-web/`](./real-time-canvas-web)** — Next.js 16 with React 19, Fabric.js, Matter.js, and WebSocket
+- **[`real-time-canvas-service/`](./real-time-canvas-service)** — Go with Gin framework, PostgreSQL, Redis, and Gorilla WebSocket
+
+There is no root `package.json`/workspace tooling tying them together — each has its own dependency graph and lockfile, and is built/tested independently (see [CI](#-continuous-integration) below).
 
 ## ✨ Features
 
@@ -173,29 +178,32 @@ The platform consists of:
 ### Frontend
 | Technology | Purpose |
 |------------|---------|
-| Next.js 15 | React framework with App Router |
+| Next.js 16 (App Router, Turbopack) | React framework |
 | React 19 | UI library |
 | TypeScript | Type safety |
-| Tailwind CSS | Styling and design system |
+| Tailwind CSS v4 | Styling and design system |
 | Fabric.js v6 | Canvas rendering and object management |
 | Matter.js | Physics simulation engine |
 | Yjs | CRDT-based real-time collaboration |
 | Zustand | State management |
 | WebSocket | Real-time communication |
-| IndexedDB | Offline operation queue |
+| IndexedDB (via localforage) | Offline operation queue |
+| ESLint (`eslint-config-next`) | Linting |
 
 ### Backend
 | Technology | Purpose |
 |------------|---------|
-| Go 1.21+ | Backend language |
+| Go 1.25+ | Backend language |
 | Gin | Web framework |
 | PostgreSQL 15+ | Primary database |
-| Redis 7+ | Session management & pub/sub |
+| Redis 7+ | Session management, pub/sub & rate limiting |
 | GORM | ORM library |
 | Gorilla WebSocket | WebSocket implementation |
 | golang-migrate | Database migrations |
 | go-redis | Redis client |
+| AWS SDK v2 (S3) | Optional media storage backend (falls back to local disk) |
 | JWT | Authentication |
+| golangci-lint | Linting |
 
 ## 📁 Project Structure
 
@@ -203,119 +211,46 @@ The platform consists of:
 ```
 real-time-canvas-web/
 ├── app/                         # Next.js App Router
-│   ├── (auth)/                 # Authentication routes
-│   │   ├── login/              # Login page
-│   │   └── layout.tsx          # Auth layout
+│   ├── (auth)/login/           # Login page
 │   ├── (canvas)/               # Canvas workspace
 │   │   ├── page.tsx            # Room launcher dashboard
-│   │   ├── layout.tsx          # Canvas layout
 │   │   └── room/[roomId]/      # Individual canvas room
-│   │       ├── page.tsx        # Canvas room page
-│   │       └── loading.tsx     # Loading state
-│   ├── api/                    # API routes
+│   ├── api/                    # Route handlers (NextAuth, room proxying)
 │   ├── providers/              # Context providers
-│   ├── globals.css             # Global styles
 │   └── layout.tsx              # Root layout
 ├── components/
-│   ├── canvas/                 # Canvas components
-│   │   ├── tools/              # Toolbar and tools
-│   │   │   ├── Toolbar.tsx     # Main toolbar
-│   │   │   ├── TextTool.tsx    # Text input
-│   │   │   ├── ShapeTool.tsx   # Shape creation
-│   │   │   ├── ImageTool.tsx   # Image upload
-│   │   │   ├── StickyNoteTool.tsx
-│   │   │   └── AudioTool.tsx   # Audio recording
-│   │   ├── minimap/            # Radar & minimap
-│   │   │   ├── Minimap.tsx
-│   │   │   ├── Radar.tsx
-│   │   │   └── UserIndicator.tsx
-│   │   ├── physics/            # Physics controls
-│   │   │   ├── PhysicsControls.tsx
-│   │   │   ├── PhysicsEngine.ts
-│   │   │   └── MatterBridge.ts
-│   │   ├── ZoomControls.tsx    # Zoom controls
+│   ├── canvas/
+│   │   ├── InfiniteCanvas/     # Core canvas (Core/Events/Renderer split)
+│   │   ├── tools/              # Toolbar + Text/Shape/Image/StickyNote/Pencil/Audio tools
+│   │   ├── objects/            # Fabric object wrappers (Shape/Text/Sticky/Image/Audio)
+│   │   ├── dock/                # Dockable tool rail + color palette
+│   │   ├── minimap/             # Radar minimap
+│   │   ├── physics/             # Physics engine + Matter.js bridge + controls
+│   │   ├── ZoomControls.tsx
 │   │   └── TimeTravelControls.tsx
-│   ├── collaboration/           # Collaboration UI
-│   │   ├── UserPresence.tsx
-│   │   ├── CursorTracker.tsx
-│   │   ├── TypingIndicator.tsx
-│   │   └── CollaborationStatus.tsx
-│   ├── room/                   # Room management
-│   │   ├── RoomList.tsx
-│   │   ├── RoomInvite.tsx
-│   │   ├── RoomInfo.tsx
-│   │   ├── CreateRoomDialog.tsx
-│   │   └── JoinRoomDialog.tsx
-│   └── export/                 # Export functionality
-│       ├── ExportModal.tsx
-│       ├── PNGExporter.ts
-│       ├── SVGExporter.ts
-│       └── JSONExporter.ts
-├── hooks/                      # Custom React hooks
-│   ├── useCanvas.ts            # Canvas lifecycle
-│   ├── useWebSocket.ts         # WebSocket connection
-│   ├── usePhysics.ts           # Physics integration
-│   ├── useOfflineSync.ts       # Offline queue
-│   ├── useTimeTravel.ts        # Session replay
-│   ├── useRoom.ts              # Room management
-│   ├── useAuth.ts              # Authentication
-│   ├── useCollaboration.ts     # Collaboration
-│   ├── useMinimap.ts           # Minimap
-│   └── useZoomPan.ts           # Zoom & pan
-├── lib/                        # Core libraries
-│   ├── canvas/                 # Fabric.js config & renderer
-│   │   ├── fabricConfig.ts
-│   │   ├── renderer.ts
-│   │   ├── objectFactory.ts
-│   │   └── MinimapRenderer.ts
-│   ├── websocket/              # WebSocket client
-│   │   ├── client.ts
-│   │   ├── handlers.ts
-│   │   └── events.ts
-│   ├── offline/                # Offline sync
-│   │   ├── indexDB.ts
-│   │   ├── queueManager.ts
-│   │   └── syncEngine.ts
-│   ├── time-travel/            # Time travel engine
-│   │   ├── EventStore.ts
-│   │   └── TimeTravelEngine.ts
-│   ├── physics/                # Physics engine
-│   │   └── PhysicsEngine.ts
-│   ├── yjs/                    # CRDT collaboration
-│   │   ├── crdt.ts
-│   │   ├── sync.ts
-│   │   └── provider.ts
-│   └── utils/                  # Utilities
-│       ├── coordinates.ts
-│       ├── debounce.ts
-│       └── uuid.ts
-├── store/                      # Zustand stores
-│   ├── canvasStore.ts
-│   ├── collaborationStore.ts
-│   ├── websocketStore.ts
-│   ├── roomStore.ts
-│   ├── authStore.ts
-│   ├── userStore.ts
-│   ├── historyStore.ts
-│   ├── minimapStore.ts
-│   └── exportStore.ts
-├── types/                      # TypeScript types
-│   ├── canvas.ts
-│   ├── canvas-objects.ts
-│   ├── collaboration.ts
-│   ├── websocket.ts
-│   ├── room.ts
-│   ├── physics.ts
-│   ├── offline.ts
-│   ├── time-travel.ts
-│   └── export.ts
-├── config/                     # Configuration
-│   ├── constants.ts
-│   └── env.ts
+│   ├── collaboration/          # Presence, cursors, typing indicators
+│   ├── room/                   # Room list/invite/info/create/join dialogs
+│   ├── export/                 # PNG/SVG/JSON exporters
+│   └── ui/                     # Shared primitives (Button, Modal, Toast, ...)
+├── hooks/                      # useCanvas, useWebSocket, usePhysics, useOfflineSync,
+│                                # useTimeTravel, useRoom, useAuth, useCollaboration,
+│                                # useMinimap, useZoomPan
+├── lib/
+│   ├── canvas/                 # Fabric config, renderer, object factory, minimap renderer
+│   ├── websocket/               # WebSocket client, message handlers, event types
+│   ├── offline/                 # IndexedDB, queue manager, sync engine
+│   ├── time-travel/             # Event store + replay engine
+│   ├── physics/                 # Matter.js physics engine
+│   ├── yjs/                     # CRDT collaboration (crdt/sync/provider)
+│   ├── theme/                   # Theme provider (light/dark)
+│   ├── api/                     # REST client
+│   └── utils/                   # coordinates, debounce, uuid
+├── store/                      # Zustand stores: canvas, collaboration, drawing, export,
+│                                # history, minimap, room, auth, user, websocket
+├── types/                      # TypeScript type definitions
+├── config/                     # Constants & environment config
 ├── public/                     # Static assets
-│   ├── images/
-│   └── icons/
-├── .env.example
+├── eslint.config.mjs
 ├── next.config.ts
 ├── package.json
 ├── tailwind.config.ts
@@ -327,63 +262,28 @@ real-time-canvas-web/
 ```
 real-time-canvas-service/
 ├── api/
-│   └── routes.go               # HTTP route definitions
-├── cmd/
-│   └── api/
-│       └── main.go             # Application entry point
+│   └── routes.go                   # HTTP route definitions
+├── cmd/api/
+│   └── main.go                     # Application entry point (wiring + startup)
 ├── internal/
-│   ├── config/                 # Configuration
-│   │   ├── config.go           # Config loading
-│   │   ├── database.go         # Database connections
-│   │   └── migrate.go          # Migration runner
-│   ├── handlers/               # HTTP handlers
-│   │   ├── auth_handler.go     # Authentication endpoints
-│   │   ├── room_handler.go     # Room management
-│   │   ├── canvas_handler.go   # Canvas operations
-│   │   └── websocket_handler.go # WebSocket handler
-│   ├── middleware/             # Middleware
-│   │   ├── auth.go             # JWT authentication
-│   │   ├── cors.go             # CORS configuration
-│   │   └── logging.go          # Request logging
-│   ├── models/                 # Data models
-│   │   ├── dto/                # Data Transfer Objects
-│   │   │   ├── user.go
-│   │   │   ├── room.go
-│   │   │   ├── canvas.go
-│   │   │   └── sync.go
-│   │   ├── user.go             # User model
-│   │   ├── room.go             # Room model
-│   │   ├── room_user.go        # Room membership
-│   │   ├── canvas_object.go    # Canvas object
-│   │   └── sync_event.go       # Sync event
-│   ├── repository/             # Data repositories
-│   │   ├── postgres/           # PostgreSQL repositories
-│   │   │   ├── user_repo.go
-│   │   │   ├── room_repo.go
-│   │   │   └── canvas_repo.go
-│   │   └── redis/              # Redis repositories
-│   │       ├── session_repo.go
-│   │       └── pubsub.go
-│   ├── services/               # Business logic
-│   │   ├── user_service.go
-│   │   ├── room_service.go
-│   │   ├── canvas_service.go
-│   │   └── sync_service.go
-│   └── websocket/              # WebSocket management
-│       ├── hub.go              # Connection hub
-│       ├── client.go           # Client handling
-│       ├── message.go          # Message types
-│       └── room_manager.go     # Room metadata
-├── migrations/                 # Database migrations
-│   ├── 001_initial_schema.up.sql
-│   └── 001_initial_schema.down.sql
-├── pkg/                        # Shared packages
-│   ├── database/
-│   │   ├── postgres.go
-│   │   └── redis.go
-│   └── utils/
-│       ├── id_generator.go
-│       └── validator.go
+│   ├── config/                     # Config loading, DB connections, migration runner
+│   ├── handlers/                   # auth, room, canvas, sync, media, websocket
+│   ├── middleware/                 # auth (JWT), cors, logging, ratelimit (Redis-backed)
+│   ├── models/                     # user, room, room_user, canvas_object, sync_event
+│   │   └── dto/                    # Request/response DTOs
+│   ├── repository/
+│   │   ├── postgres/               # user, room, canvas, sync repositories (GORM)
+│   │   └── redis/                  # session repository, pub/sub
+│   ├── services/                   # user, room, canvas, sync, media, physics
+│   ├── storage/                    # Pluggable media storage: local disk or S3
+│   └── websocket/                  # hub, client, message types (+ hub concurrency tests)
+├── migrations/                     # golang-migrate SQL migrations
+├── pkg/
+│   ├── database/                   # Postgres/Redis connection helpers
+│   ├── jwt/                        # Token generation/validation (+ tests)
+│   ├── redis/                      # Shared Redis service (rate limiting, pub/sub)
+│   └── utils/                      # id_generator, validator
+├── uploads/                        # Local media storage fallback (gitignored)
 ├── go.mod
 ├── go.sum
 ├── .env.example
@@ -395,25 +295,23 @@ real-time-canvas-service/
 ### Prerequisites
 
 **Frontend:**
-- Node.js 18+ or Bun
-- npm or yarn or bun
+- Node.js 22+
+- npm (the repo ships a `package-lock.json`, so use `npm ci`/`npm install`)
 
 **Backend:**
-- Go 1.21+
+- Go 1.25+
 - PostgreSQL 15+
 - Redis 7+
 
 ### Installation
 ```bash
 # Clone the repository
-git clone https://github.com/yourusername/infinite-canvas.git
-cd infinite-canvas
+git clone https://github.com/Oluwaseyi89/real-time-canvas.git
+cd real-time-canvas
 
 # ─── Frontend Setup ───
 cd real-time-canvas-web
 npm install
-# or
-bun install
 
 cp .env.example .env
 
@@ -427,6 +325,8 @@ nano .env
 ```
 
 ## Environment Variables
+See each app's own README for the full, current list — [`real-time-canvas-web/.env.example`](./real-time-canvas-web/.env.example) and [`real-time-canvas-service/.env.example`](./real-time-canvas-service/.env.example) are the source of truth. At minimum:
+
 ### Frontend (.env):
 ```env
 NEXT_PUBLIC_APP_NAME=Infinite Canvas
@@ -448,13 +348,19 @@ DB_NAME=collaborative_canvas
 DB_SSLMODE=disable
 
 # Redis
-REDIS_HOST=localhost
-REDIS_PORT=6379
-REDIS_PASSWORD=
-REDIS_DB=0
+REDIS_URL=redis://localhost:6379
+
+# CORS — comma-separated origins allowed to make credentialed requests
+ALLOWED_ORIGINS=http://localhost:3000
 
 # Security
 JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
+
+# Media uploads — leave S3_BUCKET empty to use local disk storage instead
+S3_BUCKET=
+LOCAL_UPLOAD_DIR=./uploads
+LOCAL_UPLOAD_BASE_URL=http://localhost:8080/uploads
+MEDIA_MAX_UPLOAD_MB=15
 ```
 
 ## Running the Application
@@ -462,10 +368,7 @@ JWT_SECRET=your-super-secret-jwt-key-change-this-in-production
 # ─── Backend ───
 cd real-time-canvas-service
 
-# Run migrations
-go run cmd/api/main.go
-
-# Start the server
+# Applies pending migrations on startup, then serves on :8080
 go run cmd/api/main.go
 
 # ─── Frontend ───
@@ -473,8 +376,6 @@ cd ../real-time-canvas-web
 
 # Development mode
 npm run dev
-# or
-bun dev
 
 # Production build
 npm run build
@@ -514,10 +415,19 @@ npm start
 | POST | `/api/v1/rooms/:id/objects/batch` | Batch create objects |
 | POST | `/api/v1/rooms/:id/objects/clear` | Clear room objects |
 
+### Sync & Media
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/v1/rooms/:id/events` | Record a sync event (time-travel/offline replay log) |
+| GET | `/api/v1/rooms/:id/events` | Fetch missed events since a version, for reconnect/replay |
+| POST | `/api/v1/rooms/:id/media` | Upload an image/audio attachment (local disk or S3) |
+
 ### WebSocket
 | Endpoint | Description |
 |----------|-------------|
-| `/ws` | WebSocket connection endpoint |
+| `/ws` | WebSocket connection endpoint (auth via `?token=` query param) |
+
+All routes above `/api/v1/auth/*` require a `Bearer` JWT. Auth endpoints are rate-limited per IP (20 req/min); all other `/api/v1` routes are rate-limited per authenticated user (300 req/min), backed by Redis.
 
 ## 🔐 WebSocket Events
 
@@ -582,11 +492,24 @@ All panels use a consistent glassmorphism style with:
 - **Connection Pooling**: Efficient database and Redis connection management
 - **Horizontal Scaling**: WebSocket hubs can be scaled with Redis pub/sub
 
+## ✅ Continuous Integration
+
+Each app has its own workflow under [`.github/workflows/`](./.github/workflows), scoped to only run when that app's files change:
+
+- **[`real-time-canvas-web-ci.yml`](./.github/workflows/real-time-canvas-web-ci.yml)** — installs, type-checks (`tsc --noEmit`), builds (`next build`), and runs ESLint. Lint currently reports rather than blocks — see [`real-time-canvas-web/README.md`](./real-time-canvas-web/README.md#-quality--ci) for why.
+- **[`real-time-canvas-service-ci.yml`](./.github/workflows/real-time-canvas-service-ci.yml)** — builds, vets, runs the test suite with the race detector, and runs `golangci-lint` as a required check.
+
+Run the same checks locally before pushing — see the **Quality & CI** section in each app's README for exact commands.
+
 ## 🤝 Contributing
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
+3. Run the relevant app's lint/type-check/build/test commands locally (see its README)
+4. Commit your changes (`git commit -m 'Add amazing feature'`)
+5. Push to the branch (`git push origin feature/amazing-feature`)
+6. Open a Pull Request — CI will run automatically against it
 
+## 📄 License
+
+No `LICENSE` file is currently published for this repository, so default copyright applies (all rights reserved) unless/until the maintainer adds one.
 

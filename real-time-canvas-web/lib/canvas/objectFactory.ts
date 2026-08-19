@@ -255,7 +255,7 @@ export class ObjectFactory {
     // canvas.add(group) in groupSelection) always succeeding.
     let serialized: Record<string, unknown>
     try {
-      serialized = tagged.toObject(['metadata', 'createdBy'])
+      serialized = tagged.toObject(['metadata', 'createdBy']) as unknown as Record<string, unknown>
     } catch (error) {
       console.warn('[ObjectFactory] createGroup toObject() failed, syncing without full data:', error)
       serialized = {}
