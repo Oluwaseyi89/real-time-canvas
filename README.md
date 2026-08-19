@@ -33,6 +33,11 @@ There is no root `package.json`/workspace tooling tying them together — each h
 
 ## 🏗️ System Architecture
 
+![Infinite Canvas system architecture diagram — client, backend, and data layers](./docs/architecture.png)
+
+<details>
+<summary>ASCII reference diagrams (high-level architecture, frontend architecture, data flow)</summary>
+
 ### High-Level Architecture
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
@@ -173,6 +178,8 @@ There is no root `package.json`/workspace tooling tying them together — each h
 └─────────────────────────────────────────────────────────────────────┘
 ```
 
+</details>
+
 ## 🛠️ Technology Stack
 
 ### Frontend
@@ -206,6 +213,17 @@ There is no root `package.json`/workspace tooling tying them together — each h
 | golangci-lint | Linting |
 
 ## 📁 Project Structure
+
+### Repository Root
+```
+real-time-canvas/
+├── .github/workflows/           # CI: real-time-canvas-web-ci.yml, real-time-canvas-service-ci.yml
+├── docs/                        # Diagrams and other project documentation
+│   └── architecture.png         # System architecture diagram (embedded above)
+├── real-time-canvas-web/        # Next.js frontend — see its own README
+├── real-time-canvas-service/    # Go backend — see its own README
+└── README.md                    # This file
+```
 
 ### Frontend Structure
 ```
